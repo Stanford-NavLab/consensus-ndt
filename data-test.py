@@ -9,7 +9,7 @@ drive = '0005'
 data = pykitti.raw(basedir, date, drive, frames= range(0, 5, 1))
 
 points_lidar = data.velo
-test_lidar = data.get_velo(0)
+test_lidar = data.get_velo(0) # LiDAR point cloud is a Nx4 numpy array
 print(np.shape(test_lidar))
 test_lidar = test_lidar[:,:3]
 print(np.shape(points_lidar))
