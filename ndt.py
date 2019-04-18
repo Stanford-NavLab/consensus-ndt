@@ -71,7 +71,8 @@ def ndt_approx(ref_pointcloud, horiz_grid_size=0.5, vert_grid_size=0.5, offset_a
         y_index = np.int(np.mod(grid_number, xgrid.shape[0]*xgrid.shape[1])/xgrid.shape[0])
         x_index = np.mod(grid_number, xgrid.shape[0])
         points_in_grid_array = np.array([np.array(point) for point in points_in_grid[i][1]])
-        if points_in_grid_array.shape[0] != 0 and points_in_grid_array.shape[0] != 1:
+        if points_in_grid_array.shape[0] >= 4:
+            # At least 4 points are needed for 3D NDT to make sense 1 - point, 2- line, 3 - plane, min 4 for a volume
             grid_mu[x_index, y_index, z_index, :] = np.mean(points_in_grid_array, axis=1)
             grid_sigma[x_index, y_index, z_index, :, :] = np.cov(points_in_grid_array.T)
     # Use grid_mu and grid_sigma to create/define ndt_cloud object
