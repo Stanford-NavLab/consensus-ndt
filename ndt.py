@@ -7,8 +7,6 @@ Last modified: 19th April 2019
 """
 import numpy as np
 import pptk
-from matplotlib import pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
 # TODO: Remove libraries like pptk (that are being used for testing and not final implementation)
 """
 Importing base libraries
@@ -261,5 +259,5 @@ def display_ndt_cloud(pc_ndt_approx):
     :param pc_ndt_approx: Collection of 8 NDT point clouds (representing the offset NDT approximations)
     :return: None
     """
-
+    # TODO: Move pptk viewer here (as opposed to its current location in the class defintion)
     return None
