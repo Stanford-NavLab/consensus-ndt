@@ -17,5 +17,5 @@ data = pykitti.raw(basedir, date, drive, frames=range(0, 5, 1))
 
 points_lidar = data.velo
 test_lidar = data.get_velo(0) # LiDAR point cloud is a Nx4 numpy array
-#test_cloud = ndt_approx.ndt_approx(test_lidar)
+#test_cloud = ndt_approx.ndt_approx(test_lidar, horiz_grid_size=0.25, vert_grid_size=0.25)
 testing = ndt.pc_to_ndt(test_lidar)

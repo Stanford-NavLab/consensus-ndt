@@ -6,8 +6,10 @@ Date created: 15ht April 2019
 Last modified: 19th April 2019
 """
 import numpy as np
+import pptk
 from matplotlib import pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
+# TODO: Remove libraries like pptk (that are being used for testing and not final implementation)
 """
 Importing base libraries
 """
@@ -18,7 +20,6 @@ class NDTCloud:
     A class to store the sparse grid center points, means and covariances for grid points that are full.
     This class will be the de facto default for working with NDT point clouds
     """
-    # TODO: Finish class definition and change other functions to work with this class
     def __init__(self, xlim, ylim, zlim, input_horiz_grid_size, input_vert_grid_size):
         """
         A method to initialize a member of the NDTCloud class. When initializing a member of the class, grid limits are
@@ -104,8 +105,6 @@ class NDTCloud:
         :param transformed_pc: Point cloud that has been passed through a candidate affine transformation
         :return: likelihood: Scalar value representing the likelihood of the given
         """
-        # TODO: Check this code!!! It was written while distracted and tired- Seems to be working for now. Fixed the
-        #  lack of negative sign in the expectation. Check again
         transformed_xyz = transformed_pc[:, :3]
         likelihood = 0
         points_in_voxels = self.bin_in_voxels(transformed_xyz)
@@ -115,22 +114,21 @@ class NDTCloud:
                 sigma_inv = np.linalg.inv(sigma)
                 sigma_det = np.abs(np.linalg.det(sigma))
                 diff = val - self.stats[key]['mu']
-                likelihood += np.sum((1/(2*sigma_det))*np.exp(-np.diag(np.matmul(np.matmul(diff, sigma_inv), diff.T))))
+                likelihood += np.sum(np.exp(-np.diag(np.matmul(np.matmul(diff, sigma_inv), diff.T))))
         return likelihood
 
-    def display(self, fig, plot_density = 1):
+    def display(self, fig, plot_density=1):
         """
         Function to display the single NDT approximation
         :param fig: The figure object on which the probability function has to be plotted
         :param plot_density: The density of the plot (as a int scalar) the higher the density, the more points per grid
-        :return: None
+        :return: plot_points: The points sampled from the distribution that are to be plotted like any other PC
         """
-        # TODO: Check if repeating the 3D projection modifies anything in the results
-        # TODO: Check implementation
-        print(fig.gca)
+        # TODO: Display points are off center (when compared to the original point cloud. FIX THIS
         axes = fig.gca(projection='3d')
-        base_num_pts = 27  # 3 points per dimension
+        base_num_pts = 48  # 3 points per vertical and 4 per horizontal
         num_pts = np.int(plot_density * base_num_pts)
+        plot_points = np.empty([3, 0])
         for key, value in self.stats.items():
             sigma = self.stats[key]['sigma']
             mu = self.stats[key]['mu']
@@ -142,13 +140,13 @@ class NDTCloud:
             grid_lim[1][1] = center_pt[1] + self.horiz_grid_size
             grid_lim[2][0] = center_pt[2] - self.vert_grid_size
             grid_lim[2][1] = center_pt[2] + self.vert_grid_size
-            plot_points = np.reshape(np.random.multivariate_normal(mu, sigma), [3, -1])
+            grid_plot_points = np.random.multivariate_normal(mu, sigma, num_pts)
             # Ensure that all selected points are inside the grid
-            for i in range(3):
-                plot_points[i][plot_points[i][:] < grid_lim[i][0]] = grid_lim[i][0]
-                plot_points[i][plot_points[i][:] > grid_lim[i][1]] = grid_lim[i][1]
-            axes.scatter(plot_points[0][:], plot_points[1][:], plot_points[2][:], size=1, c=(1, 1, 1, 0.66))
-        return None
+            #for i in range(3):
+                #grid_plot_points[i][grid_plot_points[i][:] < grid_lim[i][0]] = grid_lim[i][0]
+                #grid_plot_points[i][grid_plot_points[i][:] > grid_lim[i][1]] = grid_lim[i][1]
+            plot_points = np.hstack((plot_points, grid_plot_points.T))
+        return plot_points
 
     def update_stats(self, points_in_voxels):
         """
@@ -163,14 +161,8 @@ class NDTCloud:
                 m_old = self.stats[k]['no_points']*self.stats[k]['mu']  # row vector
                 s_old = self.stats[k]['no_points']*self.stats[k]['sigma'] + \
                         np.matmul(np.reshape(self.stats[k]['mu'], [3, 1]), np.reshape(m_old, [1, 3]))
-                test4 = np.matmul(np.reshape(self.stats[k]['mu'], [3, 1]), np.reshape(m_old, [1, 3]))
                 m_new = m_old + np.sum(v, axis=0)
                 s_new = s_old + np.matmul(v.T, v)
-                test1 = np.matmul(v.T, v) # This is correct, their formula is wrong?
-                test2 = np.zeros((3, 3))
-                for i in range(int(no_in_voxel)):
-                    test3 = np.matmul(np.reshape(v[i, :], [3, 1]), np.reshape(v[i, :], [1, 3]))
-                    test2 += test3
                 self.stats[k]['no_points'] += no_in_voxel
                 self.stats[k]['mu'] = m_new/self.stats[k]['no_points']
                 self.stats[k]['sigma'] = (s_new - np.matmul(np.reshape(self.stats[k]['mu'], [3, 1]),
@@ -235,13 +227,13 @@ def ndt_approx(ref_pointcloud, horiz_grid_size=0.5, vert_grid_size=0.5, offset_a
 
     # Create NDT map for reference grid
     ndt_cloud = NDTCloud(xlim, ylim, zlim, input_horiz_grid_size=horiz_grid_size, input_vert_grid_size=vert_grid_size)
-    ref_pointcloud_test = ref_pointcloud[:10, :]
+    ref_pointcloud_test = ref_pointcloud
     ndt_cloud.update_cloud(ref_pointcloud_test)
-    ref_pointcloud_test2 = ref_pointcloud[10:14, :]
-    ndt_cloud.update_cloud(ref_pointcloud_test2)
-    print(ndt_cloud.find_likelihood(ref_pointcloud_test))
-    test_fig = plt.figure()
-    ndt_cloud.display(test_fig)
+    fig = plt.figure()
+    points_to_plot = ndt_cloud.display(fig, plot_density=0.5)
+    print(points_to_plot.shape)
+    pptk.viewer(points_to_plot.T)
+    pptk.viewer(ref_pointcloud[:, :3])
     return ndt_cloud
 
 
@@ -269,6 +261,5 @@ def display_ndt_cloud(pc_ndt_approx):
     :param pc_ndt_approx: Collection of 8 NDT point clouds (representing the offset NDT approximations)
     :return: None
     """
-    plt.figure()
 
     return None
