@@ -115,7 +115,7 @@ class NDTCloud:
                 likelihood += np.sum(np.exp(-np.diag(np.matmul(np.matmul(diff, sigma_inv), diff.T))))
         return likelihood
 
-    def display(self, fig, plot_density=1):
+    def display(self, plot_density=1):
         """
         Function to display the single NDT approximation
         :param fig: The figure object on which the probability function has to be plotted
@@ -123,7 +123,6 @@ class NDTCloud:
         :return: plot_points: The points sampled from the distribution that are to be plotted like any other PC
         """
         # TODO: Display points are off center (when compared to the original point cloud. FIX THIS
-        axes = fig.gca(projection='3d')
         base_num_pts = 48  # 3 points per vertical and 4 per horizontal
         num_pts = np.int(plot_density * base_num_pts)
         plot_points = np.empty([3, 0])
@@ -131,18 +130,18 @@ class NDTCloud:
             sigma = self.stats[key]['sigma']
             mu = self.stats[key]['mu']
             center_pt = np.array(key)
-            grid_lim = np.zeros([3, 2])
-            grid_lim[0][0] = center_pt[0] - self.horiz_grid_size
-            grid_lim[0][1] = center_pt[0] + self.horiz_grid_size
-            grid_lim[1][0] = center_pt[1] - self.horiz_grid_size
-            grid_lim[1][1] = center_pt[1] + self.horiz_grid_size
-            grid_lim[2][0] = center_pt[2] - self.vert_grid_size
-            grid_lim[2][1] = center_pt[2] + self.vert_grid_size
+            grid_lim = np.zeros([2, 3])
+            grid_lim[0, 0] = center_pt[0] - self.horiz_grid_size
+            grid_lim[1, 0] = center_pt[0] + self.horiz_grid_size
+            grid_lim[0, 1] = center_pt[1] - self.horiz_grid_size
+            grid_lim[1, 1] = center_pt[1] + self.horiz_grid_size
+            grid_lim[0, 2] = center_pt[2] - self.vert_grid_size
+            grid_lim[1, 2] = center_pt[2] + self.vert_grid_size
             grid_plot_points = np.random.multivariate_normal(mu, sigma, num_pts)
             # Ensure that all selected points are inside the grid
-            #for i in range(3):
-                #grid_plot_points[i][grid_plot_points[i][:] < grid_lim[i][0]] = grid_lim[i][0]
-                #grid_plot_points[i][grid_plot_points[i][:] > grid_lim[i][1]] = grid_lim[i][1]
+            for i in range(3):
+                grid_plot_points[grid_plot_points[:, i] < grid_lim[0, i], i] = grid_lim[0, i]
+                grid_plot_points[grid_plot_points[:, i] > grid_lim[1, i], i] = grid_lim[1, i]
             plot_points = np.hstack((plot_points, grid_plot_points.T))
         return plot_points
 
@@ -227,9 +226,7 @@ def ndt_approx(ref_pointcloud, horiz_grid_size=0.5, vert_grid_size=0.5, offset_a
     ndt_cloud = NDTCloud(xlim, ylim, zlim, input_horiz_grid_size=horiz_grid_size, input_vert_grid_size=vert_grid_size)
     ref_pointcloud_test = ref_pointcloud
     ndt_cloud.update_cloud(ref_pointcloud_test)
-    fig = plt.figure()
-    points_to_plot = ndt_cloud.display(fig, plot_density=0.5)
-    print(points_to_plot.shape)
+    points_to_plot = ndt_cloud.display(plot_density=0.5)
     pptk.viewer(points_to_plot.T)
     pptk.viewer(ref_pointcloud[:, :3])
     return ndt_cloud
