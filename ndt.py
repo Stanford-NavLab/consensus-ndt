@@ -143,6 +143,8 @@ class NDTCloud:
                 grid_plot_points[grid_plot_points[:, i] < grid_lim[0, i], i] = grid_lim[0, i]
                 grid_plot_points[grid_plot_points[:, i] > grid_lim[1, i], i] = grid_lim[1, i]
             plot_points = np.hstack((plot_points, grid_plot_points.T))
+        # TODO: The results of display seem to be off center. Check possible issues in point/ center computations both
+        #  here and in the part where they're first being approximated
         return plot_points
 
     def update_stats(self, points_in_voxels):
