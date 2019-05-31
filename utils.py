@@ -8,6 +8,13 @@ import numpy as np
 
 
 def rotation_matrix(angle, axis='z'):
+    """
+    Function to output rotation matrix for rotation by given angle about a specified axis
+    :param angle: Angle in degrees
+    :param axis: Axis of rotation ('x', 'y' or 'z')
+    :return: rot_matrix: The resultant rotation matrix
+    """
+    angle = np.deg2rad(angle)
     if axis == 'x':
         c = np.cos(angle)
         s = np.sin(angle)
@@ -21,11 +28,16 @@ def rotation_matrix(angle, axis='z'):
         s = np.sin(angle)
         rot_matrix = np.array([[c, -s, 0], [s, c, 0], [0, 0, 1]])
     else:
-        raise Exception('Wrong value for axis input. Check your input')
+        raise Exception('Wrong value for axis input.')
     return rot_matrix
 
 
-def dcm2eul(euler_angle):
+def eul2dcm(euler_angle):
+    """
+    Function to convert given euler angles (in degrees) to a DCM
+    :param euler_angle: Euler angles (in degrees)
+    :return: dcm: Required DCM
+    """
     phi = euler_angle[0]
     theta = euler_angle[1]
     psi = euler_angle[2]
@@ -34,3 +46,49 @@ def dcm2eul(euler_angle):
     rot_mat_z = rotation_matrix(psi, axis='z')
     dcm = np.matmul(rot_mat_z, np.matmul(rot_mat_y, rot_mat_x))
     return dcm
+
+
+def dcm2eul(dcm):
+    """
+    Function to convert given direction cosine matrix into euler angles
+    :param dcm: Given DCM
+    :return: euler_angle: Corresponding euler angles (returned in degrees)
+    """
+    A11 = dcm[0][0]
+    A12 = dcm[0][1]
+    A13 = dcm[0][2]
+    A21 = dcm[1][0]
+    A22 = dcm[1][1]
+    A23 = dcm[1][2]
+    A31 = dcm[2][0]
+    A32 = dcm[2][1]
+    A33 = dcm[2][2]
+    euler_angle = np.zeros([3, 1])
+    denom = np.sqrt(A11**2 + A21**2)
+    if not denom < 1e-6:
+        euler_angle[0] = np.arctan2(A31, A33)
+        euler_angle[1] = np.arctan2(-A31, denom)
+        euler_angle[2] = np.arctan2(A21, A11)
+    else:
+        euler_angle[0] = np.arctan2(-A23, A22)
+        euler_angle[1] = np.arctan2(-A31, denom)
+        euler_angle[2] = 0
+    euler_angle = np.rad2deg(euler_angle)
+    return euler_angle
+
+
+def transform_pts(points, T):
+    """
+    Function to transform all given points by the given affine transform T
+    :param points: Set of points forming a point cloud Nx3
+    :param T: Affine transformation matrix
+    :return: transformed_points: Transformed points
+    """
+    N = points.shape[0]
+    homogeneous_points = np.vstack((points, np.ones(N, 1)))
+    transform_homogeneous_points = np.zeros_like(homogeneous_points)
+    for i in range(N):
+        current_point = np.reshape(homogeneous_points[i][:], [3, 1])
+        transform_homogeneous_points[i][:] = np.matmul(T, current_point)
+    transformed_points = transform_homogeneous_points[:][:3]
+    return transformed_points
