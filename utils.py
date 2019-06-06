@@ -7,9 +7,25 @@ Date Created: 15th April 2019
 import numpy as np
 
 
+def transform_pts(points, affine_trans):
+    """
+    Function to transform all given points by the given affine transform T
+    :param points: Set of points forming a point cloud Nx3
+    :param affine_trans: Affine transformation matrix generated using transforms3d
+    :return: transformed_points: Transformed points
+    """
+    N = points.shape[0]
+    homogeneous_points = np.vstack((points, np.ones(N, 1)))
+    transform_homogeneous_points_transpose = np.matmul(affine_trans, homogeneous_points.T)
+    transform_homogeneous_points = transform_homogeneous_points_transpose.T
+    transformed_points = transform_homogeneous_points[:][:3]
+    return transformed_points
+
+
+# Sending these functions to the end of the file as they're deprecated by using transforms3d.py
 def rotation_matrix(angle, axis='z'):
     """
-    Function to output rotation matrix for rotation by given angle about a specified axis
+    Function yields rotation matrix that will rotate point about the coordinate axis by given angle and axis
     :param angle: Angle in degrees
     :param axis: Axis of rotation ('x', 'y' or 'z')
     :return: rot_matrix: The resultant rotation matrix
@@ -64,6 +80,12 @@ def dcm2eul(dcm):
     A32 = dcm[2][1]
     A33 = dcm[2][2]
     euler_angle = np.zeros([3, 1])
+    # Implementing formula from Wikipedia now
+    euler_angle[0] = -1*np.arctan2(A32, A33)
+    euler_angle[1] = -np.arcsin(A31)
+    euler_angle[2] = -1*np.arctan2(A12, A11)
+    """
+    Implementation from Wolfram Alpha
     denom = np.sqrt(A11**2 + A21**2)
     if not denom < 1e-6:
         euler_angle[0] = np.arctan2(A31, A33)
@@ -73,22 +95,6 @@ def dcm2eul(dcm):
         euler_angle[0] = np.arctan2(-A23, A22)
         euler_angle[1] = np.arctan2(-A31, denom)
         euler_angle[2] = 0
+    """
     euler_angle = np.rad2deg(euler_angle)
     return euler_angle
-
-
-def transform_pts(points, T):
-    """
-    Function to transform all given points by the given affine transform T
-    :param points: Set of points forming a point cloud Nx3
-    :param T: Affine transformation matrix
-    :return: transformed_points: Transformed points
-    """
-    N = points.shape[0]
-    homogeneous_points = np.vstack((points, np.ones(N, 1)))
-    transform_homogeneous_points = np.zeros_like(homogeneous_points)
-    for i in range(N):
-        current_point = np.reshape(homogeneous_points[i][:], [3, 1])
-        transform_homogeneous_points[i][:] = np.matmul(T, current_point)
-    transformed_points = transform_homogeneous_points[:][:3]
-    return transformed_points
