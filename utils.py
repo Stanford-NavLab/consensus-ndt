@@ -15,10 +15,11 @@ def transform_pts(points, affine_trans):
     :return: transformed_points: Transformed points
     """
     N = points.shape[0]
-    homogeneous_points = np.vstack((points, np.ones(N, 1)))
-    transform_homogeneous_points_transpose = np.matmul(affine_trans, homogeneous_points.T)
+    test1 = np.ones([1, N])
+    homogeneous_points = np.vstack((points.T, np.ones([1, N])))
+    transform_homogeneous_points_transpose = np.matmul(affine_trans, homogeneous_points)
     transform_homogeneous_points = transform_homogeneous_points_transpose.T
-    transformed_points = transform_homogeneous_points[:][:3]
+    transformed_points = transform_homogeneous_points[:, :3]
     return transformed_points
 
 
