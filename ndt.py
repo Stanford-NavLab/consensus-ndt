@@ -3,11 +3,14 @@ ndt.py
 File containing functions for NDT-based point cloud function approximation functions
 Author: Ashwin Kanhere
 Date created: 15ht April 2019
-Last modified: 19th April 2019
+Last modified: 30th May 2019
 """
 import numpy as np
 import pptk
-# TODO: Remove libraries like pptk (that are being used for testing and not final implementation)
+import utils
+import transforms3d
+from scipy.optimize import minimize
+from scipy.optimize import Bounds
 """
 Importing base libraries
 """
@@ -50,15 +53,30 @@ class NDTCloud:
         self.local_to_global = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
         # Store an estimate of the transformation of the current scan origin to global origin
 
-    def update_displacement(self, affine_transform):
+    def update_displacement(self, odometry_vector):
         """
         A function to update the displacement of the current local frame of reference from the global reference
-        :param affine_transform: A vector of [x, y, z, phi, theta, psi] measuring the  affine transformation of the
+        :param odometry_vector: A vector of [x, y, z, phi, theta, psi] measuring the  affine transformation of the
         current local frame of reference (LiDAR origin) to the global frame of reference (map origin)
         :return: None
         """
-        # TODO: Convert this so that coordinate transformations are used to update the frame of reference
-        self.local_to_global = np.reshape(affine_transform, [-1, 6])
+        # TODO: Check update_displacement
+        # Update translation vector
+        self.local_to_global[:3] += odometry_vector[:3]
+        # Update euler angle vector
+        phi_local = np.deg2rad(self.local_to_global[3])
+        theta_local = np.deg2rad(self.local_to_global[4])
+        psi_local = np.deg2rad(self.local_to_global[5])
+        R_local = transforms3d.euler.euler2mat(phi_local, theta_local, psi_local)
+        phi_delta = np.deg2rad(odometry_vector[3])
+        theta_delta = np.deg2rad(odometry_vector[4])
+        psi_delta = np.deg2rad(odometry_vector[5])
+        R_delta = transforms3d.euler.euler2mat(phi_delta, theta_delta, psi_delta)
+        R_new = np.matmul(R_delta, R_local)
+        phi_rad, theta_rad, psi_rad = transforms3d.euler.mat2euler(R_new)
+        angle_new = np.rad2deg(np.array([phi_rad, theta_rad, psi_rad]))
+        self.local_to_global[3:] = angle_new
+        return None
 
     def find_voxel_center(self, ref_pointcloud):
         """
@@ -83,7 +101,7 @@ class NDTCloud:
         """
         Function to bin given points into voxels in a dictionary approach
         :param points_to_bin: The points that are to be binned into the voxel clusters indexed by the voxel center tuple
-        :return: points_in_voxel:
+        :return: points_in_voxel: A dictionary indexed by the tuple of the center of the bin
         """
         no_points = points_to_bin.shape[0]
         voxel_centers = self.find_voxel_center(points_to_bin)
@@ -100,9 +118,12 @@ class NDTCloud:
         """
         Function to return likelihood for a given transformed point cloud w.r.t NDT point cloud
         Slightly different from reference papers in that 1/2det(sigma) is also included while calculating the likelihood
+        The likelihood is increased if a corresponding Gaussian is found. If not, 0 is added
         :param transformed_pc: Point cloud that has been passed through a candidate affine transformation
         :return: likelihood: Scalar value representing the likelihood of the given
         """
+        # TODO: Test likelihood computation using a number of points that are easy to evaluate on a calculator/MATLAB.
+        #  This should guard against obvious calculative problems
         transformed_xyz = transformed_pc[:, :3]
         likelihood = 0
         points_in_voxels = self.bin_in_voxels(transformed_xyz)
@@ -110,12 +131,12 @@ class NDTCloud:
             if key in self.stats:
                 sigma = self.stats[key]['sigma']
                 sigma_inv = np.linalg.inv(sigma)
-                sigma_det = np.abs(np.linalg.det(sigma))
                 diff = val - self.stats[key]['mu']
                 likelihood += np.sum(np.exp(-np.diag(np.matmul(np.matmul(diff, sigma_inv), diff.T))))
+        print("Random statement")
         return likelihood
 
-    def display(self, plot_density=1):
+    def display(self, plot_density=1.0):
         """
         Function to display the single NDT approximation
         :param fig: The figure object on which the probability function has to be plotted
@@ -207,6 +228,104 @@ class NDTCloud:
         self.eig_check()
         return None
 
+    def odometry_objective(self, odometry_vector, original_pc):
+        """
+        A function that combines functions for transformation of a point cloud and the computation of likelihood (score)
+        :param odometry_vector: Candidate odometry vector
+        :param original_pc: Input point cloud
+        :return: objective: Maximization objective which is the likelihood of transformed point cloud for the given NDT
+        """
+        transformed_pc = transform_pc(odometry_vector, original_pc)
+        objective = -1*self.find_likelihood(transformed_pc)
+        return objective
+
+    def odometry_jacobian(self, odometry_vector, test_pc):
+        """
+        Function to return the Jacobian of the likelihood objective for the odometry calculation
+        :param odometry_vector: The point at which the Jacobian is to be evaluated
+        :param test_pc: The point cloud for which the optimization is being performed
+        :return: jacobian: The Jacobian matrix (of the objective w.r.t the odometry vector)
+        """
+        N = test_pc.shape[0]
+        jacobian = np.zeros([6, 1])
+        transformed_pc = transform_pc(odometry_vector, test_pc)
+        transform_centers = self.find_voxel_center(transformed_pc)
+        # TODO: Re-test the output from bin in voxels and see if it the centers can be indexed in the following for loop
+        print('Woo hoo')
+        for pt_num in range(N):
+            center_key = tuple(transform_centers[pt_num][:])
+            # TODO: Check if this condition is being correctly triggered
+            if center_key in self.stats:
+                mu = self.stats[center_key]['mu']
+                sigma = self.stats[center_key]['sigma']
+                sigma_inv = np.linalg.inv(sigma)
+                qx = test_pc[pt_num][0] - mu[0]
+                qy = test_pc[pt_num][1] - mu[1]
+                qz = test_pc[pt_num][2] - mu[2]
+                q = np.array([[qx], [qy], [qz]])
+                delq_delt = find_delqdelt(odometry_vector, q)
+                g = np.zeros([6, 1])
+                for i in range(6):
+                    g[i] = np.matmul(q.T, np.matmul(sigma_inv, np.atleast_2d(delq_delt[:, i]).T)) * np.exp(
+                    -0.5*np.matmul(q.T, np.matmul(sigma_inv, q)))
+                jacobian += g
+        return jacobian
+
+    def odometry_hessian(self, odometry_vector, test_pc):
+        """
+        Function to return an approximation of the Hessian of the likelihood objective for the odometry calculation
+        :param odometry_vector: The point at which the Hessian is evaluated
+        :param test_pc: The point cloud for which the optimization is being carried out
+        :return: hessian: The Hessian matrix of the objective w.r.t. the odometry vector
+        """
+        # TODO: Test implementation of the Hessian
+        N = test_pc.shape[0]
+        hessian = np.zeros([6, 6])
+        transformed_pc = transform_pc(odometry_vector, test_pc)
+        transform_centers = self.find_voxel_center(transformed_pc)
+        for pt_num in range(N):
+            center_key = tuple(transform_centers[i][:])
+            # TODO: Check if this condition is being correctly triggered
+            if center_key in self.stats:
+                mu = self.stats[center_key]['mu']
+                sigma = self.stats[center_key]['sigma']
+                sigma_inv = np.linalg.inv(sigma)
+                qx = test_pc[pt_num][0] - mu[0]
+                qy = test_pc[pt_num][1] - mu[1]
+                qz = test_pc[pt_num][2] - mu[2]
+                q = np.array([[qx], [qy], [qz]])
+                temp_hess = np.zeros([6, 6])
+                delq_delt = find_delqdelt(odometry_vector, q)
+                del2q_deltnm = find_del2q_deltnm(odometry_vector, q)
+                for i in range(6):
+                    for j in range(6):
+                        temp_hess[i, j] = -np.exp(-0.5*np.matmul(q.T, np.matmul(sigma_inv, q)))*(
+                                (-np.matmul(q.T, np.matmul(sigma_inv, np.atleast_2d(delq_delt[:, i])))*(
+                            np.matmul(q.T, np.matmul(sigma_inv, np.atleast_2d(delq_delt[:, j]))))) - (
+                            np.matmul(q.T, np.matmul(sigma_inv, np.atleast_2d(del2q_deltnm[:, i, j]))))-(
+                            np.matmul(np.atleast_2d(delq_delt[:, j]).T, np.matmul(sigma_inv, np.atleast_2d(delq_delt[:, i])))))
+                hessian += temp_hess
+        return hessian
+
+    def calculate_odometry(self, test_pc):
+        """
+        Function to find the best traansformation (in the form of a translation, Euler angle vector)
+        :param test_pc: Point cloud which has to be matched to the existing NDT approximation
+        :return: odom_vector: The resultant odometry vector (Euler angles in degrees)
+        """
+        # TODO: Provide the Jacobian for the objective function
+        # TODO: Provide the Hessian for the objective function
+        # TODO: Define the optimization solver and run it
+
+        initial_odom = np.array([0, 0, 0, 0, 0, 0])
+        xlim, ylim, zlim = find_pc_limits(test_pc)
+        odometry_bounds = Bounds([-xlim, xlim], [-ylim, ylim], [-zlim, zlim], [-180.0, 180.0], [-90.0, 90.0],
+                                 [-180.0, 180.0])
+        res = minimize(self.odometry_objective, initial_odom, method='Newton-CG', jac=self.odometry_jacobian,
+                       hessp=self.odometry_hessian, bounds=odometry_bounds, args=(test_pc,))
+        odom_vector = res.x
+        return odom_vector
+
 
 def ndt_approx(ref_pointcloud, horiz_grid_size=0.5, vert_grid_size=0.5, offset_axis=np.array([0, 0, 0])):
     """
@@ -218,6 +337,7 @@ def ndt_approx(ref_pointcloud, horiz_grid_size=0.5, vert_grid_size=0.5, offset_a
     :param offset_axis: 1x3 np array containing booleans for which axis to offset on
     :return: ndt_cloud: NDT approximated cloud for the given point cloud and grid size
     """
+    # TODO: Clean up this function and move all testing functionality to a separate file (ashwin-playground for example)
     ref_pointcloud = ref_pointcloud.reshape([-1, 4])
     # Extract the size of the grid
     xlim = np.ceil(np.max(np.absolute(ref_pointcloud[:, 1]))) + 2*horiz_grid_size + 0.5*horiz_grid_size*offset_axis[0]
@@ -228,9 +348,12 @@ def ndt_approx(ref_pointcloud, horiz_grid_size=0.5, vert_grid_size=0.5, offset_a
     ndt_cloud = NDTCloud(xlim, ylim, zlim, input_horiz_grid_size=horiz_grid_size, input_vert_grid_size=vert_grid_size)
     ref_pointcloud_test = ref_pointcloud
     ndt_cloud.update_cloud(ref_pointcloud_test)
+    test_point_1 = ref_pointcloud[12:14, :3]
+    ndt_cloud.find_likelihood(test_point_1)
     points_to_plot = ndt_cloud.display(plot_density=0.5)
     pptk.viewer(points_to_plot.T)
     pptk.viewer(ref_pointcloud[:, :3])
+    input("Press any key to finish program")
     return ndt_cloud
 
 
@@ -260,3 +383,79 @@ def display_ndt_cloud(pc_ndt_approx):
     """
     # TODO: Move pptk viewer here (as opposed to its current location in the class defintion)
     return None
+
+
+def find_pc_limits(pointcloud):
+    """
+    Function to find cartesian coordinate limits of given point cloud
+    :param pointcloud: Given point cloud as an np.array of shape Nx3
+    :return: xlim, ylim, zlim: Corresponding maximum absolute coordinate values
+    """
+    # TODO: Test this function and it's output
+    xlim = np.max(np.abs(pointcloud[:, 0]))
+    ylim = np.max(np.abs(pointcloud[:, 1]))
+    zlim = np.max(np.abs(pointcloud[:, 2]))
+    return xlim, ylim, zlim
+
+
+def transform_pc(odometry_vector, original_pc):
+    """
+    Function to transform a point cloud according to the given odometry vector
+    :param odometry_vector: [tx, ty, tz, phi, theta, psi] (angles in degrees)
+    :param orignal_pc: original point cloud that is to be transformed
+    :return:
+    """
+    phi = np.deg2rad(odometry_vector[3])
+    theta = np.deg2rad(odometry_vector[4])
+    psi = np.deg2rad(odometry_vector[5])
+    R = transforms3d.euler.euler2mat(phi, theta, psi)  # Using default rotation as the convention for this project
+    T = odometry_vector[:3]
+    Z = np.eye(3)
+    A = transforms3d.affines.compose(T, R, Z)
+    transformed_pc = utils.transform_pts(original_pc, A)
+    return transformed_pc
+
+
+def find_delqdelt(odometry_vector, q):
+    """
+    Return a 3x6 matrix that captures partial q/ partial t_n
+    :param odometry_vector:
+    :param q:
+    :return: delq_delt: A 3x6 matrix for the required partial derivative
+    """
+    phi = np.deg2rad(odometry_vector[0])
+    theta = np.deg2rad(odometry_vector[1])
+    psi = np.deg2rad(odometry_vector[2])
+    c1 = np.cos(phi)
+    s1 = np.sin(phi)
+    c2 = np.cos(theta)
+    s2 = np.sin(theta)
+    c3 = np.cos(psi)
+    s3 = np.sin(psi)
+    qx = q[0]
+    qy = q[1]
+    qz = q[2]
+    delq_delt = np.zeros([3, 6])
+    delq_delt[:, 0] = np.array([[1], [0], [0]])
+    delq_delt[:, 1] = np.array([[0], [1], [0]])
+    delq_delt[:, 2] = np.array([[0], [0], [1]])
+    delq_delt[:, 3] = np.pi/180*np.array([[0], [-s2 * c3 * qx + s2 * s3 * qy + c2 * qz], [-c2 * s3 * qx - c2 * c3 * qy]])
+    delq_delt[:, 4] = np.pi/180*np.array([[(-s1 * s3 + c3 * c1 * s2) * qx - (s1 * c3 + c1 * s2 * s3) * qy - c2 * c1 * qz],
+                                [c3 * s1 * c2 * qx - s1 * c2 * s3 * qy + s1 * s2 * qz],
+                                [(c1 * c3 - s1 * s2 * s3) * qx - (c1 * s3 + s1 * s2 * c3) * qy]])
+    delq_delt[:, 5] = np.pi/180*np.array([[(c1 * s3 + s1 * c3 * s2) * qx + (c1 * c3 - s1 * s2 * s3) * qy - s1 * c2 * qz],
+                                [-c1 * c2 * c3 * qx + c1 * c2 * s3 * qy - c1 * s2 * qz],
+                                [(s1 * c3 + c1 * s2 * s3) * qx + (-s1 * s3 + c1 * s2 * c3) * qy]])
+    return delq_delt
+
+
+def find_del2q_deltnm(odometry_vector, q):
+    del2q_deltnm = np.zeros([3, 6, 6])
+    delta = 0.001
+    for i in range(6):
+        odometry_new = np.zeros([6, ])
+        odometry_new[i] = odometry_new[i] + delta
+        q_new = transform_pc(odometry_new, q)
+        odometry_new += odometry_vector
+        del2q_deltnm[:, :, i] = (find_delqdelt(odometry_new, q_new) - find_delqdelt(odometry_vector, q))/delta
+    return del2q_deltnm
