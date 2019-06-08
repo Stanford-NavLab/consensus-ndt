@@ -17,8 +17,7 @@ def transform_pts(points, affine_trans):
     N = points.shape[0]
     test1 = np.ones([1, N])
     homogeneous_points = np.vstack((points.T, np.ones([1, N])))
-    transform_homogeneous_points_transpose = np.matmul(affine_trans, homogeneous_points)
-    transform_homogeneous_points = transform_homogeneous_points_transpose.T
+    transform_homogeneous_points = np.transpose(np.matmul(affine_trans, homogeneous_points))
     transformed_points = transform_homogeneous_points[:, :3]
     return transformed_points
 
