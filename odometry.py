@@ -176,7 +176,7 @@ def find_del2q_deltnm(odometry_vector, q):
     :return:
     """
     del2q_deltnm = np.zeros([3, 6, 6])
-    delta = 0.001
+    delta = 1.5e-08
     for i in range(6):
         odometry_new = np.zeros([6, ])
         odometry_new[i] = odometry_new[i] + delta
