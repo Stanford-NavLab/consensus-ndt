@@ -36,7 +36,6 @@ def jacobian(odometry_vector, ndt_cloud, test_pc):
     :param test_pc: The point cloud for which the optimization is being performed
     :return: jacobian_val: The Jacobian matrix (of the objective w.r.t the odometry vector)
     """
-    # TODO: Vectorize this function
     N = test_pc.shape[0]
     jacobian_val = np.zeros(6)
     transformed_pc = utils.transform_pc(odometry_vector, test_pc)
@@ -60,6 +59,34 @@ def jacobian(odometry_vector, ndt_cloud, test_pc):
                     -0.5 * np.matmul(q.T, np.matmul(sigma_inv, q)))
             jacobian_val += g
     # print('The Jacobian has run')
+    return jacobian_val
+
+
+def jacobian_vect(odometry_vector, ndt_cloud, test_pc):
+    """
+    Function to return the Jacobian of the likelihood objective for the odometry calculation
+    :param odometry_vector: The point at which the Jacobian is to be evaluated
+    :param ndt_cloud: The NDT cloud with respect to which the odometry is required
+    :param test_pc: The point cloud for which the optimization is being performed
+    :return: jacobian_val: The Jacobian matrix (of the objective w.r.t the odometry vector)
+    """
+    jacobian_val = np.zeros(6)
+    transformed_pc = utils.transform_pc(odometry_vector, test_pc)
+    points_in_voxels = ndt_cloud.bin_in_voxels(transformed_pc)
+    for key, value in points_in_voxels.items():
+        if key in ndt_cloud.stats:
+            # Vectorized implementation
+            mu = ndt_cloud.stats[key]['mu']
+            print(mu.shape)
+            sigma = ndt_cloud.stats[key]['sigma']
+            sigma_inv = np.linalg.inv(sigma)
+            g = np.zeros(6)
+            q = value - mu
+            delq_delt = find_delqdelt_vect(odometry_vector, value)
+            for i in range(6):
+                g[i] = np.sum(np.diag(np.matmul(q, np.matmul(sigma_inv, delq_delt[:, :, i].T))) *
+                              np.exp(-0.5 * np.diag(np.matmul(q, np.matmul(sigma_inv, q.T)))))  # Check this out
+            jacobian_val += g
     return jacobian_val
 
 
@@ -131,6 +158,50 @@ def find_pc_limits(pointcloud):
     ylim = np.max(np.abs(pointcloud[:, 1]))
     zlim = np.max(np.abs(pointcloud[:, 2]))
     return xlim, ylim, zlim
+
+
+def find_delqdelt_vect(odometry_vector, points):
+    """
+    Vectorized implementation of the Jacobian function
+    :param odometry_vector: Odometry vector at which Jacobian is needed
+    :param points: The original set of points
+    :return: delq_delt: A Nx3x6 matrix for the required partial derivative
+    """
+    N = points.shape[0]
+    phi = np.deg2rad(odometry_vector[0])
+    theta = np.deg2rad(odometry_vector[1])
+    psi = np.deg2rad(odometry_vector[2])
+    c1 = np.cos(phi)
+    s1 = np.sin(phi)
+    c2 = np.cos(theta)
+    s2 = np.sin(theta)
+    c3 = np.cos(psi)
+    s3 = np.sin(psi)
+    param_mat = np.zeros([6, 3, 3])
+    param_mat[3, :, :] = np.array([[0, (-s1 * s3 + c3 * c1 * s2), (c1 * s3 + s1 * c3 * s2)],
+                                   [0, - (s1 * c3 + c1 * s2 * s3), (c1 * c3 - s1 * s2 * s3)],
+                                   [0, - c2 * c1, - s1 * c2]])
+    param_mat[4, :, :] = np.array([[-s2 * c3,  c3 * s1 * c2, -c1 * c2 * c3],
+                                   [s2 * s3, - s1 * c2 * s3, c1 * c2 * s3],
+                                   [c2, s1 * s2, - c1 * s2]])
+    param_mat[5, :, :] = np.array([[-c2 * s3, (c1 * c3 - s1 * s2 * s3), (s1 * c3 + c1 * s2 * s3)],
+                                   [- c2 * c3, - (c1 * s3 + s1 * s2 * c3), (-s1 * s3 + c1 * s2 * c3)],
+                                   [0, 0, 0]])
+    delq_delt = np.zeros([N, 3, 6])  # Indexing in the first dimension based on experience
+    delq_delt[:, :3, :3] = np.broadcast_to(np.eye(3), [N, 3, 3])
+    for i in range(3, 6):
+        delq_delt[:, :, i] = np.pi / 180.0 * np.matmul(points, param_mat[i, :, :])
+    return delq_delt
+
+
+def find_del2q_deltnm_vect(odometry_vector, points):
+    """
+    Vectorized implementation of function to return double partial derivative of point w.r.t. odometry vector parameters
+    :param odometry_vector: Vector at which Hessian is being calculated
+    :param q: Points which are being compared to the NDT Cloud
+    :return: del2q_deltnm:
+    """
+    return del2q_deltnm
 
 
 def find_delqdelt(odometry_vector, q):
