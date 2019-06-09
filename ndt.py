@@ -245,18 +245,10 @@ class NDTCloud:
         # odometry_bounds = Bounds([-xlim, -ylim, -zlim, -180.0, -90.0, -180.0], [xlim, ylim, zlim, 180.0, 90.0, 180.0])
         # TODO: Any way to implement bounds on the final solution?
         # TODO: Clean up this function once debugging done
-        # err = check_grad(odometry.objective, odometry.jacobian, initial_odom, self, test_xyz)
-        # print('The gradient error is: ', err)
-        # print('Running demo functions')
-        # delta = 1.5e-08
-        # new_odom = np.zeros(6)
-        # new_odom[3] = delta
-        # first_run = odometry.jacobian(initial_odom, self, test_xyz)
-        # second_run = odometry.jacobian(new_odom, self, test_xyz)
-        # print('About to run first optimizer')
-        # res = minimize(odometry.objective, initial_odom, method='BFGS', args=(self, test_xyz),
-        #                options={'disp': True})
-        # print(res.x)
+        print('About to run first optimizer')
+        res = minimize(odometry.objective, initial_odom, method='BFGS', args=(self, test_xyz),
+                        options={'disp': True})
+        print(res.x)
         print('About to run second optimizer')
         res = minimize(odometry.objective, initial_odom, method='Newton-CG', jac=odometry.jacobian,
                        hess=odometry.hessian, args=(self, test_xyz), options={'disp': True})
@@ -289,12 +281,12 @@ def ndt_approx(ref_pointcloud, horiz_grid_size=0.5, vert_grid_size=0.5, offset_a
     #   pptk.viewer(points_to_plot1.T)
     # pptk.viewer(test_point_1)
     ndt_cloud = NDTCloud(xlim, ylim, zlim, input_horiz_grid_size=horiz_grid_size, input_vert_grid_size=vert_grid_size)
-    point_1 = np.atleast_2d(ref_pointcloud[876:878, :])
+    point_1 = np.atleast_2d(ref_pointcloud[878, :])
     #ndt_cloud.update_cloud(point_1)
     ndt_cloud.update_cloud(ref_pointcloud)
     point_2 = np.atleast_2d(ref_pointcloud[1:3, :])
     ndt_cloud.calculate_odometry(point_1)
-    #ndt_cloud.calculate_odometry(ref_pointcloud)
+    ndt_cloud.calculate_odometry(ref_pointcloud)
     #ndt_cloud.calculate_odometry(np.atleast_2d(ref_pointcloud[1, :]))
     ndt_cloud.calculate_odometry(np.atleast_2d(ref_pointcloud[876, :]))
     ndt_cloud.calculate_odometry(test_point_1)
