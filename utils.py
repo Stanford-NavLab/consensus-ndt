@@ -5,6 +5,7 @@ Author: Ashwin Kanhere
 Date Created: 15th April 2019
 """
 import numpy as np
+import transforms3d
 
 
 def transform_pts(points, affine_trans):
@@ -15,11 +16,28 @@ def transform_pts(points, affine_trans):
     :return: transformed_points: Transformed points
     """
     N = points.shape[0]
-    test1 = np.ones([1, N])
     homogeneous_points = np.vstack((points.T, np.ones([1, N])))
     transform_homogeneous_points = np.transpose(np.matmul(affine_trans, homogeneous_points))
     transformed_points = transform_homogeneous_points[:, :3]
     return transformed_points
+
+
+def transform_pc(odometry_vector, original_pc):
+    """
+    Function to transform a point cloud according to the given odometry vector
+    :param odometry_vector: [tx, ty, tz, phi, theta, psi] (angles in degrees)
+    :param original_pc: original point cloud that is to be transformed
+    :return:
+    """
+    phi = np.deg2rad(odometry_vector[3])
+    theta = np.deg2rad(odometry_vector[4])
+    psi = np.deg2rad(odometry_vector[5])
+    R = transforms3d.euler.euler2mat(phi, theta, psi, 'rxyz')  # Using default rotation as the convention for this project
+    T = odometry_vector[:3]
+    Z = np.ones([3])
+    A = transforms3d.affines.compose(T, R, Z)
+    transformed_pc = transform_pts(original_pc, A)
+    return transformed_pc
 
 
 # Sending these functions to the end of the file as they're deprecated by using transforms3d.py
