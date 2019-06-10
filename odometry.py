@@ -3,7 +3,7 @@ odometry.py
 Functions to calculate odometry given a point cloud and corresponding ndt_clouds
 Author: Ashwin Kanhere
 Date created: 9th June 2019
-Last modified: 9th June 2019
+Last modified: 10th June 2019
 """
 
 import numpy as np
