@@ -8,7 +8,6 @@ Last modified: 9th June 2019
 
 import numpy as np
 import utils
-# TODO: Remove all debugging print statements from this file
 
 
 def objective(odometry_vector, ndt_cloud, test_pc):
@@ -21,10 +20,6 @@ def objective(odometry_vector, ndt_cloud, test_pc):
     """
     transformed_pc = utils.transform_pc(odometry_vector, test_pc)
     obj_value = -1 * ndt_cloud.find_likelihood(transformed_pc)
-    """
-    print('Objective: the objective value is ', -1 * ndt_cloud.find_likelihood(transformed_pc), ' for the odometry vector ',
-          odometry_vector)
-    """
     return obj_value
 
 
@@ -40,7 +35,6 @@ def jacobian(odometry_vector, ndt_cloud, test_pc):
     jacobian_val = np.zeros(6)
     transformed_pc = utils.transform_pc(odometry_vector, test_pc)
     transform_centers = ndt_cloud.find_voxel_center(transformed_pc)
-    print('Woo hoo')
     for pt_num in range(N):
         # The output from find_voxel_center matches this implementation and the next line should yield the dict key
         center_key = tuple(transform_centers[pt_num][:])
@@ -58,7 +52,6 @@ def jacobian(odometry_vector, ndt_cloud, test_pc):
                 g[i] = np.matmul(q.T, np.matmul(sigma_inv, np.atleast_2d(delq_delt[:, i]).T)) * np.exp(
                     -0.5 * np.matmul(q.T, np.matmul(sigma_inv, q)))
             jacobian_val += g
-    # print('The Jacobian has run')
     return jacobian_val
 
 
@@ -77,7 +70,6 @@ def jacobian_vect(odometry_vector, ndt_cloud, test_pc):
         if key in ndt_cloud.stats:
             # Vectorized implementation
             mu = ndt_cloud.stats[key]['mu']
-            print(mu.shape)
             sigma = ndt_cloud.stats[key]['sigma']
             sigma_inv = np.linalg.inv(sigma)
             g = np.zeros(6)
@@ -90,6 +82,40 @@ def jacobian_vect(odometry_vector, ndt_cloud, test_pc):
     return jacobian_val
 
 
+def hessian_vect(odometry_vector, ndt_cloud, test_pc):
+    """
+    Vectorized implementation of the function to return an approximation of the Hessian of the likelihood objective
+    for the odometry calculation
+    :param odometry_vector: The point at which the Hessian is evaluated
+    :param ndt_cloud: The NDT cloud with respect to which the odometry is required
+    :param test_pc: The point cloud for which the optimization is being carried out
+    :return: hessian_val: The Hessian matrix of the objective w.r.t. the odometry vector
+    """
+    hessian_val = np.zeros([6, 6])
+    transformed_pc = utils.transform_pc(odometry_vector, test_pc)
+    points_in_voxels = ndt_cloud.bin_in_voxels(transformed_pc)
+    for key, value in points_in_voxels.items():
+        if key in ndt_cloud.stats:
+            mu = ndt_cloud.stats[key]['mu']
+            sigma = ndt_cloud.stats[key]['sigma']
+            sigma_inv = np.linalg.inv(sigma)
+            q = value - mu
+            delq_delt = find_delqdelt_vect(odometry_vector, value)
+            del2q_deltnm = find_del2q_deltnm_vect(odometry_vector, value)
+            temp_hess = np.zeros([6, 6])
+            for i in range(6):
+                for j in range(6):
+                    # Terms written out separately for increased readability in Hessian calculation
+                    term1 = np.diag(np.exp(-0.5 * np.matmul(q, np.matmul(sigma_inv, q.T))))
+                    term2 = np.diag(np.matmul(delq_delt[:, :, j], np.matmul(sigma_inv, delq_delt[:, :, i].T)))
+                    term3 = np.diag(np.matmul(q, np.matmul(sigma_inv, del2q_deltnm[:, :, i, j].T)))
+                    term4 = np.diag(-np.matmul(q, np.matmul(sigma_inv, delq_delt[:, :, i].T)))
+                    term5 = np.diag(np.matmul(q, np.matmul(sigma_inv, delq_delt[:, :, j].T)))
+                    temp_hess[i, j] = np.sum(term1*(term2 + term3 - term4*term5))
+            hessian_val += temp_hess
+    return hessian_val
+
+
 def hessian(odometry_vector, ndt_cloud, test_pc):
     """
     Function to return an approximation of the Hessian of the likelihood objective for the odometry calculation
@@ -98,7 +124,6 @@ def hessian(odometry_vector, ndt_cloud, test_pc):
     :param test_pc: The point cloud for which the optimization is being carried out
     :return: hessian_val: The Hessian matrix of the objective w.r.t. the odometry vector
     """
-    # TODO: Vectorize this function
     N = test_pc.shape[0]
     hessian_val = np.zeros([6, 6])
     transformed_pc = utils.transform_pc(odometry_vector, test_pc)
@@ -127,21 +152,6 @@ def hessian(odometry_vector, ndt_cloud, test_pc):
             hessian_val += temp_hess
     return hessian_val
 
-
-def callback(odometry_vector, test_pc):
-    """
-
-    :param odometry_vector:
-    :param test_pc:
-    :return:
-    """
-    # TODO: Write and test this function
-    global num_eval
-    print('Callback: the objective value is ', objective(odometry_vector, test_pc),
-          ' for the odometry vector ',
-          odometry_vector)
-    num_eval += 1
-    return None
 
 ################################################################
 # Helper functions for odometry calculation follow
@@ -199,8 +209,18 @@ def find_del2q_deltnm_vect(odometry_vector, points):
     Vectorized implementation of function to return double partial derivative of point w.r.t. odometry vector parameters
     :param odometry_vector: Vector at which Hessian is being calculated
     :param q: Points which are being compared to the NDT Cloud
-    :return: del2q_deltnm:
+    :return: del2q_deltnm: Nx3x6x6 matrix of del2/deltndeltm
     """
+    N = points.shape[0]
+    del2q_deltnm = np.zeros([N, 3, 6, 6])
+    delta = 1.5e-08
+    for i in range(6):
+        odometry_new = np.zeros(6)
+        odometry_new[i] = odometry_new[i] + delta
+        points_new = utils.transform_pc(odometry_new, points)
+        # Assuming that the incremental change allows us to directly add a rotation instead of an incremental change
+        odometry_new += odometry_vector
+        del2q_deltnm[:, :, :, i] = (find_delqdelt(odometry_new, points_new) - find_delqdelt(odometry_vector, points)) / delta
     return del2q_deltnm
 
 
