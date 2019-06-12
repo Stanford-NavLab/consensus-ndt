@@ -41,13 +41,8 @@ def transform_pc(odometry_vector, original_pc):
 
 
 # Sending these functions to the end of the file as they're deprecated by using transforms3d.py
+"""
 def rotation_matrix(angle, axis='z'):
-    """
-    Function yields rotation matrix that will rotate point about the coordinate axis by given angle and axis
-    :param angle: Angle in degrees
-    :param axis: Axis of rotation ('x', 'y' or 'z')
-    :return: rot_matrix: The resultant rotation matrix
-    """
     angle = np.deg2rad(angle)
     if axis == 'x':
         c = np.cos(angle)
@@ -67,11 +62,6 @@ def rotation_matrix(angle, axis='z'):
 
 
 def eul2dcm(euler_angle):
-    """
-    Function to convert given euler angles (in degrees) to a DCM
-    :param euler_angle: Euler angles (in degrees)
-    :return: dcm: Required DCM
-    """
     phi = euler_angle[0]
     theta = euler_angle[1]
     psi = euler_angle[2]
@@ -83,11 +73,6 @@ def eul2dcm(euler_angle):
 
 
 def dcm2eul(dcm):
-    """
-    Function to convert given direction cosine matrix into euler angles
-    :param dcm: Given DCM
-    :return: euler_angle: Corresponding euler angles (returned in degrees)
-    """
     A11 = dcm[0][0]
     A12 = dcm[0][1]
     A13 = dcm[0][2]
@@ -102,17 +87,16 @@ def dcm2eul(dcm):
     euler_angle[0] = -1*np.arctan2(A32, A33)
     euler_angle[1] = -np.arcsin(A31)
     euler_angle[2] = -1*np.arctan2(A12, A11)
-    """
-    Implementation from Wolfram Alpha
-    denom = np.sqrt(A11**2 + A21**2)
-    if not denom < 1e-6:
-        euler_angle[0] = np.arctan2(A31, A33)
-        euler_angle[1] = np.arctan2(-A31, denom)
-        euler_angle[2] = np.arctan2(A21, A11)
-    else:
-        euler_angle[0] = np.arctan2(-A23, A22)
-        euler_angle[1] = np.arctan2(-A31, denom)
-        euler_angle[2] = 0
-    """
-    euler_angle = np.rad2deg(euler_angle)
+    # Implementation from Wolfram Alpha
+    # denom = np.sqrt(A11**2 + A21**2)
+    # if not denom < 1e-6:
+    #     euler_angle[0] = np.arctan2(A31, A33)
+    #     euler_angle[1] = np.arctan2(-A31, denom)
+    #     euler_angle[2] = np.arctan2(A21, A11)
+    # else:
+    #     euler_angle[0] = np.arctan2(-A23, A22)
+    #     euler_angle[1] = np.arctan2(-A31, denom)
+    #     euler_angle[2] = 0
+    # euler_angle = np.rad2deg(euler_angle)
     return euler_angle
+"""
