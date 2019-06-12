@@ -12,6 +12,7 @@ import transforms3d
 from scipy.optimize import check_grad
 from scipy.optimize import minimize
 import odometry
+import diagnostics
 """
 Importing base libraries
 """
@@ -193,7 +194,7 @@ class NDTCloud:
                 self.stats[k]['sigma'] = (s_new - np.matmul(np.reshape(self.stats[k]['mu'], [3, 1]),
                                                             np.reshape(m_new, [1, 3])))/self.stats[k]['no_points']
             else:
-                if no_in_voxel >= 4 and np.sum(np.isnan(np.array(k))) == 0:
+                if no_in_voxel >= 5 and np.sum(np.isnan(np.array(k))) == 0:
                     self.stats[k] = {}  # Initialize empty dictionary before populating with values
                     self.stats[k]['mu'] = np.mean(v, axis=0)
                     self.stats[k]['sigma'] = np.cov(v, rowvar=False)
@@ -245,13 +246,20 @@ class NDTCloud:
         # odometry_bounds = Bounds([-xlim, -ylim, -zlim, -180.0, -90.0, -180.0], [xlim, ylim, zlim, 180.0, 90.0, 180.0])
         # TODO: Any way to implement bounds on the final solution?
         # TODO: Clean up this function once debugging done
-        print('About to run first optimizer')
-        res = minimize(odometry.objective, initial_odom, method='BFGS', args=(self, test_xyz),
-                        options={'disp': True})
-        print(res.x)
+        # err = check_grad(odometry.objective, odometry.jacobian_vect, initial_odom, self, test_xyz)
+        # print('The error is ', err)
+        # err2 = check_grad(odometry.objective, odometry.jacobian, initial_odom, self, test_xyz)
+        # print('The error is ', err2)
+        # print('About to run first optimizer')
+        # res = minimize(odometry.objective, initial_odom, method='BFGS', args=(self, test_xyz),
+        #                 options={'disp': True})
+        # print(res.x)
         print('About to run second optimizer')
-        res = minimize(odometry.objective, initial_odom, method='Newton-CG', jac=odometry.jacobian,
-                       hess=odometry.hessian, args=(self, test_xyz), options={'disp': True})
+        res = minimize(odometry.objective, initial_odom, method='Newton-CG', jac=odometry.jacobian_vect,
+                      hess=odometry.hessian_vect, args=(self, test_xyz), options={'disp': True})
+        # odom_vector = res.x
+        #test_res = minimize(odometry.objective, initial_odom, method='Newton-CG', jac=odometry.jacobian_vect,
+        #                    hess=odometry.hessian, args=(self, test_xyz), options={'disp': True})
         odom_vector = res.x
         # Return odometry in navigational frame of reference
         return odom_vector
@@ -281,9 +289,15 @@ def ndt_approx(ref_pointcloud, horiz_grid_size=0.5, vert_grid_size=0.5, offset_a
     #   pptk.viewer(points_to_plot1.T)
     # pptk.viewer(test_point_1)
     ndt_cloud = NDTCloud(xlim, ylim, zlim, input_horiz_grid_size=horiz_grid_size, input_vert_grid_size=vert_grid_size)
-    point_1 = np.atleast_2d(ref_pointcloud[878, :])
+    point_1 = np.atleast_2d(ref_pointcloud[10:15, :])
     #ndt_cloud.update_cloud(point_1)
     ndt_cloud.update_cloud(ref_pointcloud)
+    diagnostics.find_integrity(ndt_cloud, ref_pointcloud)
+    binned_points = ndt_cloud.bin_in_voxels(ref_pointcloud)
+    key = (23.5, 0.5, 1.5)
+    voxel_dict = ndt_cloud.stats[key]
+    diagnostics.display_voxel_points(key, voxel_dict, points=binned_points[key], density=10.0,
+                                     horiz_size=ndt_cloud.horiz_grid_size, vert_size=ndt_cloud.vert_grid_size)
     point_2 = np.atleast_2d(ref_pointcloud[1:3, :])
     ndt_cloud.calculate_odometry(point_1)
     ndt_cloud.calculate_odometry(ref_pointcloud)
