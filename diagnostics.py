@@ -3,7 +3,6 @@ diagnostics.py
 Functions to perform diagnostics and testing
 Author: Ashwin Kanhere
 Date created: 10th June 2019
-Last modified: 12th June 2019
 """
 
 import numpy as np
@@ -31,17 +30,3 @@ def display_voxel_points(key, voxel_dict, points=np.array([]), density=1.0, hori
     return None
 
 
-def find_integrity(ndt_cloud, points):
-    test_xyz = points[:, :3]
-    binned_points = ndt_cloud.bin_in_voxels(test_xyz)
-    N = len(ndt_cloud.stats)
-    iscore= np.zeros(N)
-    loop_index = 0
-    mu_points = np.zeros([N, 3])
-    for key, val in ndt_cloud.stats.items():
-        mu_points[loop_index, :] = val['mu']
-        iscore[loop_index] = integrity.voxel_integrity(val, binned_points[key])
-        loop_index += 1
-    avg_iscore = np.mean(iscore)
-    Im = integrity.solution_score(mu_points, iscore)
-    return Im
