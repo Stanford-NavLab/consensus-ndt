@@ -3,10 +3,16 @@ integrity.py
 Functions to calculate the integrity of a particular voxel/ navigation solution
 Author: Ashwin Kanhere
 Date created: 10th June 2019
-Last modified: 10th June 2019
+Last modified: 13th June 2019
 """
 
 import numpy as np
+from scipy.stats import chi2
+
+
+def sigmoid(x):
+    s = 1/(1 + np.exp(-x))
+    return s
 
 
 def calculate_dop(points, iscore):
@@ -40,3 +46,26 @@ def solution_score(points, point_iscore):
     IDOP, DOP = calculate_dop(points, point_iscore)
     sol_iscore = DOP/IDOP
     return sol_iscore
+
+
+def voxel_integrity(voxel_dict, points):
+    """
+    Function to calculate an integrity score for the points distributed inside a voxel
+    :param voxel_dict: Dictionary containing the mean and covariance for the voxel in question
+    :param points: Points that lie inside the voxel in question
+    :return: r: The integrity score for that voxel
+    """
+    N = points.shape[0]  # Number of points
+    mu = voxel_dict['mu']
+    sigma_inv = np.linalg.inv(voxel_dict['sigma'])
+    q = points[:, :3] - mu
+    r = np.sum(np.diag(np.matmul(q, np.matmul(sigma_inv, q.T))))
+    r = r / (N - 4)
+    T_upper = chi2.ppf(0.999, N - 4)
+    T_lower = chi2.ppf(0.001, N - 4)
+    scale_limit = 3
+    r_scaled = (2*scale_limit)*T_lower/(T_upper - T_lower) - (2*scale_limit)*r/(T_upper - T_lower) + scale_limit
+    Iv = sigmoid(r_scaled)
+    return Iv
+
+
