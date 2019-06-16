@@ -32,7 +32,7 @@ def calculate_dop(points, iscore):
     H_dash = np.linalg.inv(np.matmul(G_dash.T, G_dash))
     IDOP = np.sqrt(np.sum(np.diag(H_dash)))
     H = np.linalg.inv(np.matmul(G_norm.T, G_norm))
-    DOP = np.sqrt(np.sum(np.diag(H)))
+    DOP = np.sqrt(np.sum(np.diag(H)[:3]))
     return IDOP, DOP
 
 
