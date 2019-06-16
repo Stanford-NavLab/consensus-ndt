@@ -20,6 +20,7 @@ def objective(odometry_vector, ndt_cloud, test_pc):
     """
     transformed_pc = utils.transform_pc(odometry_vector, test_pc)
     obj_value = -1 * ndt_cloud.find_likelihood(transformed_pc)
+    # print('The odometry is ', obj_value, 'for the odometry vector ', odometry_vector)
     return obj_value
 
 
@@ -74,6 +75,8 @@ def jacobian_vect(odometry_vector, ndt_cloud, test_pc):
             sigma_inv = np.linalg.inv(sigma)
             g = np.zeros(6)
             q = value - mu
+            if q.ndim < 2:
+                q = np.atleast_2d(q)
             delq_delt = find_delqdelt_vect(odometry_vector, value)
             for i in range(6):
                 g[i] = np.sum(np.diag(np.matmul(q, np.matmul(sigma_inv, delq_delt[:, :, i].T))) *
@@ -156,18 +159,6 @@ def hessian(odometry_vector, ndt_cloud, test_pc):
 ################################################################
 # Helper functions for odometry calculation follow
 ################################################################
-
-
-def find_pc_limits(pointcloud):
-    """
-    Function to find cartesian coordinate limits of given point cloud
-    :param pointcloud: Given point cloud as an np.array of shape Nx3
-    :return: xlim, ylim, zlim: Corresponding maximum absolute coordinate values
-    """
-    xlim = np.max(np.abs(pointcloud[:, 0]))
-    ylim = np.max(np.abs(pointcloud[:, 1]))
-    zlim = np.max(np.abs(pointcloud[:, 2]))
-    return xlim, ylim, zlim
 
 
 def find_delqdelt_vect(odometry_vector, points):
