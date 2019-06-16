@@ -40,6 +40,66 @@ def transform_pc(odometry_vector, original_pc):
     return transformed_pc
 
 
+def odometry_difference(odom_1_ref, odom_2_ref):
+    # TODO: Check odometry_difference function implementation
+    # TODO: Populate docstring for all utils functions
+    phi_1 = np.deg2rad(odom_1_ref[3])
+    theta_1 = np.deg2rad(odom_1_ref[4])
+    psi_1 = np.deg2rad(odom_1_ref[5])
+    R_1 = transforms3d.euler.euler2mat(phi_1, theta_1, psi_1, 'rxyz')
+    T_1 = odom_1_ref[:3]
+    Z = np.ones([3])
+    A_1 = transforms3d.affines.compose(T_1, R_1, Z)
+    phi_2 = np.deg2rad(odom_2_ref[3])
+    theta_2 = np.deg2rad(odom_2_ref[4])
+    psi_2 = np.deg2rad(odom_2_ref[5])
+    R_2 = transforms3d.euler.euler2mat(phi_2, theta_2, psi_2, 'rxyz')
+    T_2 = odom_2_ref[:3]
+    A_2 = transforms3d.affines.compose(T_2, R_2, Z)
+    # Since for the previous one, it was A_2 = A_delta*A_1
+    A_delta = np.matmul(A_2, np.linalg.inv(A_1))
+    T_delta, R_delta, _, _ = transforms3d.affines.decompose44(A_delta)
+    delta_odom = np.zeros(6)
+    delta_odom[:3] = T_delta
+    phi_delta, theta_delta, psi_delta = transforms3d.euler.mat2euler(R_delta)
+    delta_odom[3:6] = np.rad2deg(np.array([phi_delta, theta_delta, psi_delta]))
+    # TODO: Verify order of operations for the inversion
+    return delta_odom
+
+
+def combine_odometry(odom_1_ref, odom_12_delta):
+    """
+    Function to combine odom_vector_1 and odom_vector_2 and return a odom_vector for the second pc that is from the same
+     reference as the first one
+    :param odom_1_ref:
+    :param odom_12_delta:
+    :return:
+    """
+    # TODO: Check combine_odometry function implementation
+    phi_1 = np.deg2rad(odom_1_ref[3])
+    theta_1 = np.deg2rad(odom_1_ref[4])
+    psi_1 = np.deg2rad(odom_1_ref[5])
+    R_1 = transforms3d.euler.euler2mat(phi_1, theta_1, psi_1, 'rxyz')
+    T_1 = odom_1_ref[:3]
+    Z = np.ones([3])
+    A_1 = transforms3d.affines.compose(T_1, R_1, Z)
+    phi_2 = np.deg2rad(odom_12_delta[3])
+    theta_2 = np.deg2rad(odom_12_delta[4])
+    psi_2 = np.deg2rad(odom_12_delta[5])
+    R_2 = transforms3d.euler.euler2mat(phi_2, theta_2, psi_2, 'rxyz')
+    T_2 = odom_12_delta[:3]
+    A_2 = transforms3d.affines.compose(T_2, R_2, Z)
+    A_2_ref = np.matmul(A_2, A_1)
+    # TODO: Check the use of multiplication for combining two affine transforms (they wouldn't use this if it wasn't
+    #  as easy as matrix multiplication to combine two
+    T_2_ref, R_2_ref, _, _ = transforms3d.affines.decompose44(A_2_ref)
+    odom_2_ref = np.zeros(6)
+    odom_2_ref[:3] = T_2_ref
+    phi_2_ref, theta_2_ref, psi_2_ref = transforms3d.euler.mat2euler(R_2_ref)
+    odom_2_ref[3:6] = np.rad2deg(np.array([phi_2_ref, theta_2_ref, psi_2_ref]))
+    return odom_2_ref
+
+
 # Sending these functions to the end of the file as they're deprecated by using transforms3d.py
 """
 def rotation_matrix(angle, axis='z'):
