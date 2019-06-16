@@ -258,23 +258,6 @@ class NDTCloud:
         self.eig_check()
         return None
 
-    def calculate_odometry(self, test_pc):
-        """
-        Function to find the best traansformation (in the form of a translation, Euler angle vector)
-        :param test_pc: Point cloud which has to be matched to the existing NDT approximation
-        :return: odom_vector: The resultant odometry vector (Euler angles in degrees)
-        """
-        test_xyz = test_pc[:, :3]
-        initial_odom = np.array([0, 0, 0, 0, 0, 0])
-        # xlim, ylim, zlim = find_pc_limits(test_xyz)
-        # odometry_bounds = Bounds([-xlim, -ylim, -zlim, -180.0, -90.0, -180.0], [xlim, ylim, zlim, 180.0, 90.0, 180.0])
-        # TODO: Any way to implement bounds on the final solution?
-        res = minimize(odometry.objective, initial_odom, method='Newton-CG', jac=odometry.jacobian_vect,
-                      hess=odometry.hessian_vect, args=(self, test_xyz), options={'disp': True})
-        odom_vector = res.x
-        # Return odometry in navigational frame of reference
-        return odom_vector
-
     def find_integrity(self, points):
         """
         Given a set of points and the underlying NDT Cloud, find the integrity of each voxel and the combined navigation

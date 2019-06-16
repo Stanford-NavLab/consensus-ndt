@@ -8,6 +8,25 @@ Last modified: 10th June 2019
 
 import numpy as np
 import utils
+from scipy.optimize import minimize
+
+
+def odometry(ndt_cloud, test_pc):
+    """
+    Function to find the best traansformation (in the form of a translation, Euler angle vector)
+    :param test_pc: Point cloud which has to be matched to the existing NDT approximation
+    :return: odom_vector: The resultant odometry vector (Euler angles in degrees)
+    """
+    test_xyz = test_pc[:, :3]
+    initial_odom = np.array([0, 0, 0, 0, 0, 0])
+    # xlim, ylim, zlim = find_pc_limits(test_xyz)
+    # odometry_bounds = Bounds([-xlim, -ylim, -zlim, -180.0, -90.0, -180.0], [xlim, ylim, zlim, 180.0, 90.0, 180.0])
+    # TODO: Any way to implement bounds on the final solution?
+    res = minimize(objective, initial_odom, method='Newton-CG', jac=jacobian_vect,
+                   hess=hessian_vect, args=(ndt_cloud, test_xyz), options={'disp': True})
+    odom_vector = res.x
+    # Return odometry in navigational frame of reference
+    return odom_vector
 
 
 def objective(odometry_vector, ndt_cloud, test_pc):
