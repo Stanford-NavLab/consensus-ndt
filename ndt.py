@@ -2,8 +2,8 @@
 ndt.py
 File containing functions for NDT-based point cloud function approximation functions
 Author: Ashwin Kanhere
-Date created: 15ht April 2019
-Last modified: 9th June 2019
+Date created: 15th April 2019
+Last modified: 13th June 2019
 """
 import numpy as np
 import pptk
@@ -13,6 +13,10 @@ from scipy.optimize import check_grad
 from scipy.optimize import minimize
 import odometry
 import diagnostics
+import integrity
+import mapping
+
+
 """
 Importing base libraries
 """
@@ -40,16 +44,20 @@ class NDTCloud:
         # When initializing the cloud, the origin is either going to be a grid center or not.
         self.horiz_grid_size = np.float(input_horiz_grid_size)
         self.vert_grid_size = np.float(input_vert_grid_size)
-        first_center_x = np.mod(2*xlim/self.horiz_grid_size + 1, 2)*self.horiz_grid_size/2.0
-        first_center_y = np.mod(2*ylim/self.horiz_grid_size + 1, 2)*self.horiz_grid_size/2.0
-        first_center_z = np.mod(2*zlim/self.vert_grid_size + 1, 2)*self.vert_grid_size/2.0
-        self.first_center = np.array([first_center_x, first_center_y, first_center_z])
+        self.first_center = np.empty([8, 3])
+        for i in range(8):
+            offset = np.array([np.mod(i, 2), np.mod(np.int(i/2), 2), np.int(i/4)])
+            first_center_x = np.mod(2*xlim/self.horiz_grid_size + offset[0] + 1, 2)*self.horiz_grid_size/2.0
+            first_center_y = np.mod(2*ylim/self.horiz_grid_size + offset[1] + 1, 2)*self.horiz_grid_size/2.0
+            first_center_z = np.mod(2*zlim/self.vert_grid_size + offset[2] + 1, 2) *self.vert_grid_size/2.0
+            self.first_center[i, :] = np.array([first_center_x, first_center_y, first_center_z])
+            # xlim = np.ceil(np.max(np.absolute(ref_pointcloud[:, 0]))) + 2*horiz_grid_size + 0.5*horiz_grid_size*offset_axis[0]
         # Create NDT map for reference grid
         # Initialize empty lists to store means and covariance matrices
         self.stats = {}  # Create an empty dictionary for mu and sigma corresponding to each voxel
         """
         Dictionary structure is {<key = center point>, {<key = 'mu'>, [mu value], <key='sigma'>, [sigma_value]
-        , <key='no_points'>, int}, ...}
+        , <key='no_points'>, int, <key='integrity'>, float}, ...}
         NOTE: key must be a tuple not a ndarray
         """
         self.local_to_global = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
@@ -93,21 +101,32 @@ class NDTCloud:
         # int(ref_x/horizontal grid size)* horizontal grid size + first grid center (same sign that the quotient is)
         # first_center is the offset from the origin of the first grid center (in either direction)
         grid_size = np.array([self.horiz_grid_size, self.horiz_grid_size, self.vert_grid_size])
-        pre_voxel_number = ref_points/grid_size
-        pre_voxel_center = pre_voxel_number.astype(int)*grid_size
-        # Check if the point lies on the edge of the grid. If it does, provide it a center so absurd that that
+        """
+        Main idea: First add the center. Things that were getting rounded to 23 while they should've gone down to 22, 
+        22.6 for example will for sure get rounded up now. Then remove the added center in the final project to bring 
+        them back down.
+        0.03 second case. Adding center will give 0.53. Rounding will give 1 and removing the center will give 0.5
+        """
+        # Check if the point lies on the edge of the grid. If it does, provide it np. nan as a center so that that
         # particular point doesn't get considered for likelihood or jacobian, thus preventing gradient jumps.
-        tol = 1.0e-7  # the maximum translation (with 3 safety margin)caused by a rotation of 1.45e-8
-        first_grid_edge = self.first_center - 0.5*np.array([self.horiz_grid_size, self.horiz_grid_size,
-                                                            self.vert_grid_size])
-        first_grid_edge[first_grid_edge == 0] = 1.0
-        line_check = np.abs(np.mod(ref_points, first_grid_edge))
-        pre_voxel_center[line_check < tol] = np.nan
-        pre_voxel_center[np.abs(line_check - 1) < tol] = np.nan
-        no_points = ref_pointcloud.shape[0]
-        voxel_centers = np.multiply(np.sign(ref_points), np.abs(pre_voxel_center) + np.broadcast_to(
-            self.first_center, (no_points, 3)))
-        return voxel_centers
+        tol = 1.0e-7  # the maximum translation (with 3 safety margin)caused by a rotation of 1.45e-8 degrees
+        points_repeated = np.tile(ref_points, (8, 1))
+        N = ref_points.shape[0]
+        voxel_centers = np.zeros_like(points_repeated)
+        for i in range(8):
+            pre_voxel_number = (ref_points + self.first_center[i, :]) / grid_size
+            pre_voxel_center = np.round(pre_voxel_number).astype(int) * grid_size
+            first_grid_edge = self.first_center[i, :] - 0.5*np.array([self.horiz_grid_size, self.horiz_grid_size,
+                                                                      self.vert_grid_size])
+            # first_grid_edge[first_grid_edge == 0] = 1.0
+            # Taking the mod with the grid size should make the above statement redundant
+            # In this case, points that are literally in the middle of the voxel will get ignored
+            line_check = np.abs(np.mod(ref_points, grid_size) + first_grid_edge)
+            pre_voxel_center[line_check < tol] = np.nan
+            pre_voxel_center[np.abs(line_check - 1) < tol] = np.nan
+            voxel_centers[i*N:(i+1)*N, :] = np.multiply(np.sign(ref_points), np.abs(pre_voxel_center) - np.broadcast_to(
+                self.first_center[i, :], (N, 3)))
+        return points_repeated, voxel_centers
 
     def bin_in_voxels(self, points_to_bin):
         """
@@ -115,15 +134,14 @@ class NDTCloud:
         :param points_to_bin: The points that are to be binned into the voxel clusters indexed by the voxel center tuple
         :return: points_in_voxel: A dictionary indexed by the tuple of the center of the bin
         """
-        no_points = points_to_bin.shape[0]
-        voxel_centers = self.find_voxel_center(points_to_bin)
+        points_repeated, voxel_centers = self.find_voxel_center(points_to_bin)
         points_in_voxels = {}
-        for i in range(no_points):
+        for i in range(points_repeated.shape[0]):
             voxel_key = tuple(voxel_centers[i, :])
             if voxel_key in points_in_voxels:
-                points_in_voxels[voxel_key] = np.vstack((points_in_voxels[voxel_key], points_to_bin[i, :]))
+                points_in_voxels[voxel_key] = np.vstack((points_in_voxels[voxel_key], points_repeated[i, :]))
             else:
-                points_in_voxels[voxel_key] = points_to_bin[i, :]
+                points_in_voxels[voxel_key] = points_repeated[i, :]
         return points_in_voxels
 
     def find_likelihood(self, transformed_pc):
@@ -155,9 +173,14 @@ class NDTCloud:
         base_num_pts = 48  # 3 points per vertical and 4 per horizontal
         num_pts = np.int(plot_density * base_num_pts)
         plot_points = np.empty([3, 0])
+        plot_integrity = np.empty(0)
         for key, value in self.stats.items():
             sigma = self.stats[key]['sigma']
             mu = self.stats[key]['mu']
+            if 'integrity' in self.stats[key]:
+                voxel_score = self.stats[key]['integrity'] * np.ones(num_pts)
+            else:
+                voxel_score = np.ones(num_pts)
             center_pt = np.array(key)
             grid_lim = np.zeros([2, 3])
             grid_lim[0, 0] = center_pt[0] - self.horiz_grid_size
@@ -172,7 +195,8 @@ class NDTCloud:
                 grid_plot_points[grid_plot_points[:, i] < grid_lim[0, i], i] = grid_lim[0, i]
                 grid_plot_points[grid_plot_points[:, i] > grid_lim[1, i], i] = grid_lim[1, i]
             plot_points = np.hstack((plot_points, grid_plot_points.T))
-        return plot_points
+            plot_integrity = np.append(plot_integrity, voxel_score)
+        return plot_points, plot_integrity
 
     def update_stats(self, points_in_voxels):
         """
@@ -245,27 +269,40 @@ class NDTCloud:
         # xlim, ylim, zlim = find_pc_limits(test_xyz)
         # odometry_bounds = Bounds([-xlim, -ylim, -zlim, -180.0, -90.0, -180.0], [xlim, ylim, zlim, 180.0, 90.0, 180.0])
         # TODO: Any way to implement bounds on the final solution?
-        # TODO: Clean up this function once debugging done
-        # err = check_grad(odometry.objective, odometry.jacobian_vect, initial_odom, self, test_xyz)
-        # print('The error is ', err)
-        # err2 = check_grad(odometry.objective, odometry.jacobian, initial_odom, self, test_xyz)
-        # print('The error is ', err2)
-        # print('About to run first optimizer')
-        # res = minimize(odometry.objective, initial_odom, method='BFGS', args=(self, test_xyz),
-        #                 options={'disp': True})
-        # print(res.x)
-        print('About to run second optimizer')
         res = minimize(odometry.objective, initial_odom, method='Newton-CG', jac=odometry.jacobian_vect,
                       hess=odometry.hessian_vect, args=(self, test_xyz), options={'disp': True})
-        # odom_vector = res.x
-        #test_res = minimize(odometry.objective, initial_odom, method='Newton-CG', jac=odometry.jacobian_vect,
-        #                    hess=odometry.hessian, args=(self, test_xyz), options={'disp': True})
         odom_vector = res.x
         # Return odometry in navigational frame of reference
         return odom_vector
 
+    def find_integrity(self, points):
+        """
+        Given a set of points and the underlying NDT Cloud, find the integrity of each voxel and the combined navigation
+        solution
+        :param points: Transformed points for which the integrity is required
+        :return: Im: The integrity of the navigation solution obtained using the transformed points given
+        :return: iscore: Voxel integrity score corresponding to the voxel center
+        """
+        test_xyz = points[:, :3]
+        binned_points = self.bin_in_voxels(test_xyz)
+        N = len(self.stats)
+        iscore_array = np.zeros(N)
+        loop_index = 0
+        mu_points = np.zeros([N, 3])
+        for key, val in self.stats.items():
+            mu_points[loop_index, :] = val['mu']
+            iscore_array[loop_index] = integrity.voxel_integrity(val, binned_points[key])
+            self.stats[key]['integrity'] = iscore_array[loop_index]
+            loop_index += 1
+        # avg_iscore = np.mean(iscore)
+        if not iscore_array.all():
+            Im = 0
+        else:
+            Im = integrity.solution_score(mu_points, iscore_array)
+        return Im
 
-def ndt_approx(ref_pointcloud, horiz_grid_size=0.5, vert_grid_size=0.5, offset_axis=np.array([0, 0, 0])):
+
+def ndt_approx(ref_pointcloud, horiz_grid_size=0.5, vert_grid_size=0.5):
     """
     Function to create single NDT approximation for given offset and point cloud
     :param ref_pointcloud: [x, y, z, int] Nx4 numpy array of the reference point cloud
@@ -275,73 +312,38 @@ def ndt_approx(ref_pointcloud, horiz_grid_size=0.5, vert_grid_size=0.5, offset_a
     :param offset_axis: 1x3 np array containing booleans for which axis to offset on
     :return: ndt_cloud: NDT approximated cloud for the given point cloud and grid size
     """
-    # TODO: Clean up this function and move all testing functionality to a separate file (ashwin-playground for example)
     ref_pointcloud = ref_pointcloud.reshape([-1, 4])
     # Extract the size of the grid
-    xlim = np.ceil(np.max(np.absolute(ref_pointcloud[:, 0]))) + 2*horiz_grid_size + 0.5*horiz_grid_size*offset_axis[0]
-    ylim = np.ceil(np.max(np.absolute(ref_pointcloud[:, 1]))) + 2*horiz_grid_size + 0.5*horiz_grid_size*offset_axis[1]
-    zlim = np.ceil(np.max(np.absolute(ref_pointcloud[:, 2]))) + 2*vert_grid_size + 0.5*vert_grid_size*offset_axis[2]
+    xlim = np.ceil(np.max(np.absolute(ref_pointcloud[:, 0]))) + 2*horiz_grid_size
+    ylim = np.ceil(np.max(np.absolute(ref_pointcloud[:, 1]))) + 2*horiz_grid_size
+    zlim = np.ceil(np.max(np.absolute(ref_pointcloud[:, 2]))) + 2*vert_grid_size
     # Create NDT map for reference grid
-    ndt_cloud1 = NDTCloud(xlim, ylim, zlim, input_horiz_grid_size=horiz_grid_size, input_vert_grid_size=vert_grid_size)
-    test_point_1 = ref_pointcloud[:14, :3]
-    #ndt_cloud1.update_cloud(test_point_1)
-    points_to_plot1 = ndt_cloud1.display(plot_density=0.5)
-    #   pptk.viewer(points_to_plot1.T)
-    # pptk.viewer(test_point_1)
     ndt_cloud = NDTCloud(xlim, ylim, zlim, input_horiz_grid_size=horiz_grid_size, input_vert_grid_size=vert_grid_size)
-    point_1 = np.atleast_2d(ref_pointcloud[10:15, :])
-    #ndt_cloud.update_cloud(point_1)
-    ndt_cloud.update_cloud(ref_pointcloud)
-    diagnostics.find_integrity(ndt_cloud, ref_pointcloud)
-    binned_points = ndt_cloud.bin_in_voxels(ref_pointcloud)
-    key = (23.5, 0.5, 1.5)
-    voxel_dict = ndt_cloud.stats[key]
-    diagnostics.display_voxel_points(key, voxel_dict, points=binned_points[key], density=10.0,
-                                     horiz_size=ndt_cloud.horiz_grid_size, vert_size=ndt_cloud.vert_grid_size)
-    point_2 = np.atleast_2d(ref_pointcloud[1:3, :])
-    ndt_cloud.calculate_odometry(point_1)
-    ndt_cloud.calculate_odometry(ref_pointcloud)
-    #ndt_cloud.calculate_odometry(np.atleast_2d(ref_pointcloud[1, :]))
-    ndt_cloud.calculate_odometry(np.atleast_2d(ref_pointcloud[876, :]))
-    ndt_cloud.calculate_odometry(test_point_1)
-    ndt_cloud.calculate_odometry(ref_pointcloud)
-
-    odom1 = np.array([0.5, 0.67, 2.6, 90, 0, 0])
-    ndt_cloud.update_displacement()
-    odom2 = np.array([-0.5, -0.67, -2.6, 90, 0, 0])
-    """
-    points_to_plot = ndt_cloud.display(plot_density=0.5)
-    view1 = pptk.viewer(points_to_plot.T)
-    view1.set(lookat=[0.0, 0.0, 0.0])
-    view2 = pptk.viewer(ref_pointcloud[:, :3])
-    view2.set(lookat=[0.0, 0.0, 0.0])
-    input("Press any key to finish program")
-    """
+    ndt_cloud.update_cloud(ref_pointcloud[:, :3])
     return ndt_cloud
 
 
-def pc_to_ndt(ref_pointcloud, horiz_grid_size=1, vert_grid_size=1):
+def display_ndt_cloud(ndt_cloud):
     """
-    Function to convert given point cloud into a NDT based approximation
-    :param ref_pointcloud: Point cloud that needs to be converted to NDT reference
-    :param horiz_grid_size: Parameter for horizontal grid sizing
-    :param vert_grid_size: Parameter for vertical grid sizing
-    :return: pc_ndt_approx: An object containing a collection (8) of NDT clouds that makes up the total reference ...
-    ... for the given point cloud
-    """
-    pc_ndt_approx = []  # Initializing the cloud object
-    for i in range(1):  # range(8):
-        offset = np.array([np.mod(i, 2), np.mod(np.int(i/2), 2), np.int(i/4)])
-        pc_ndt_approx.append(ndt_approx(ref_pointcloud, horiz_grid_size, vert_grid_size, offset_axis=offset))
-    pc_ndt_approx = []
-    return pc_ndt_approx
-
-
-def display_ndt_cloud(pc_ndt_approx):
-    """
-    Function to display average NDT clouds from a collection of NDT clouds
-    :param pc_ndt_approx: Collection of 8 NDT point clouds (representing the offset NDT approximations)
+    Function to display NDT approximation from a collection of NDT clouds
+    :param ndt_cloud: NDT point cloud approximation
     :return: None
     """
-    # TODO: Move pptk viewer here (as opposed to its current location in the class defintion)
+    points_to_plot, pt_integrity = ndt_cloud.display(plot_density=0.1)
+    ndt_viewer = pptk.viewer(points_to_plot.T, pt_integrity)
+    ndt_viewer.color_map('hot')
+    ndt_viewer.set(lookat=[0.0, 0.0, 0.0])
+    input('Press any button to move forward')
     return None
+
+
+def find_pc_limits(pointcloud):
+    """
+    Function to find cartesian coordinate limits of given point cloud
+    :param pointcloud: Given point cloud as an np.array of shape Nx3
+    :return: xlim, ylim, zlim: Corresponding maximum absolute coordinate values
+    """
+    xlim = np.max(np.abs(pointcloud[:, 0]))
+    ylim = np.max(np.abs(pointcloud[:, 1]))
+    zlim = np.max(np.abs(pointcloud[:, 2]))
+    return xlim, ylim, zlim
