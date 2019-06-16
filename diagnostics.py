@@ -30,3 +30,15 @@ def display_voxel_points(key, voxel_dict, points=np.array([]), density=1.0, hori
     return None
 
 
+def check_gradient(objective, jacobian, ndt_cloud, test_pc):
+    delta = 1.5e-08
+    odometry = np.zeros(6)
+    jacob_val = np.zeros(6)
+    analytical_jacob = jacobian(odometry, ndt_cloud, test_pc)
+    for i in range(6):
+        new_odometry = np.zeros(6)
+        new_odometry[i] = delta
+        jacob_val[i] = (objective(new_odometry, ndt_cloud, test_pc) - objective(odometry, ndt_cloud, test_pc))/delta
+    jacobian_error = jacob_val - analytical_jacob
+    print('The jacobian vector error is ', jacobian_error)
+    return jacobian_error
