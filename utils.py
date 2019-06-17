@@ -41,8 +41,13 @@ def transform_pc(odometry_vector, original_pc):
 
 
 def odometry_difference(odom_1_ref, odom_2_ref):
-    # TODO: Check odometry_difference function implementation
-    # TODO: Populate docstring for all utils functions
+    """
+    Given two odometry vectors from a common base reference, this function returns the odometry vector of the second
+    input from the first input
+    :param odom_1_ref: The odometry of the first point cloud. This point cloud is the reference for the delta odometry
+    :param odom_2_ref: The odometry of the second point cloud.
+    :return: delta_odom: The odometry that transforms points in pc1 to the origin of pc2
+    """
     phi_1 = np.deg2rad(odom_1_ref[3])
     theta_1 = np.deg2rad(odom_1_ref[4])
     psi_1 = np.deg2rad(odom_1_ref[5])
@@ -63,7 +68,6 @@ def odometry_difference(odom_1_ref, odom_2_ref):
     delta_odom[:3] = T_delta
     phi_delta, theta_delta, psi_delta = transforms3d.euler.mat2euler(R_delta)
     delta_odom[3:6] = np.rad2deg(np.array([phi_delta, theta_delta, psi_delta]))
-    # TODO: Verify order of operations for the inversion
     return delta_odom
 
 
@@ -71,11 +75,10 @@ def combine_odometry(odom_1_ref, odom_12_delta):
     """
     Function to combine odom_vector_1 and odom_vector_2 and return a odom_vector for the second pc that is from the same
      reference as the first one
-    :param odom_1_ref:
-    :param odom_12_delta:
-    :return:
+    :param odom_1_ref: The odometry vector of the first pc that is referenced to the common reference
+    :param odom_12_delta: The odometry vector of the second pc that is referenced to the first pc
+    :return: odom_2_ref: The odometry vector of the second point cloud that has the same reference as the first one
     """
-    # TODO: Check combine_odometry function implementation
     phi_1 = np.deg2rad(odom_1_ref[3])
     theta_1 = np.deg2rad(odom_1_ref[4])
     psi_1 = np.deg2rad(odom_1_ref[5])
