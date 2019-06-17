@@ -17,13 +17,19 @@ def odometry(ndt_cloud, test_pc):
     :param test_pc: Point cloud which has to be matched to the existing NDT approximation
     :return: odom_vector: The resultant odometry vector (Euler angles in degrees)
     """
+    global obj_neval
+    obj_neval = 0
+    global jacob_neval
+    jacob_neval = 0
+    global hess_neval
+    hess_neval = 0
     test_xyz = test_pc[:, :3]
     initial_odom = np.array([0, 0, 0, 0, 0, 0])
     # xlim, ylim, zlim = find_pc_limits(test_xyz)
     # odometry_bounds = Bounds([-xlim, -ylim, -zlim, -180.0, -90.0, -180.0], [xlim, ylim, zlim, 180.0, 90.0, 180.0])
     # TODO: Any way to implement bounds on the final solution?
     res = minimize(objective, initial_odom, method='Newton-CG', jac=jacobian_vect,
-                   hess=hessian_vect, args=(ndt_cloud, test_xyz), options={'disp': True})
+                   hess=hessian_vect, args=(ndt_cloud, test_xyz), options={'disp': True, 'maxiter': 10})
     odom_vector = res.x
     # Return odometry in navigational frame of reference
     return odom_vector
@@ -37,9 +43,17 @@ def objective(odometry_vector, ndt_cloud, test_pc):
     :param test_pc: Input point cloud
     :return: objective_val: Maximization objective which is the likelihood of transformed point cloud for the given NDT
     """
+    global obj_neval
+    global jacob_neval
+    global hess_neval
     transformed_pc = utils.transform_pc(odometry_vector, test_pc)
     obj_value = -1 * ndt_cloud.find_likelihood(transformed_pc)
-    # print('The odometry is ', obj_value, 'for the odometry vector ', odometry_vector)
+    print('Objective iteration: {:4d}'.format(obj_neval), 'Jacobian iteration: {:4d}'.format(jacob_neval),
+          'Hessian iteration: {:4d}'.format(hess_neval), '\n Objective Value: {:10.4f}'.format(obj_value), ' Odometry:',
+          ' x: {:2.5f}'.format(odometry_vector[0]), ' y: {:2.5f}'.format(odometry_vector[1]),
+          ' z: {:2.5f}'.format(odometry_vector[2]), ' Phi: {:2.5f}'.format(odometry_vector[3]),
+          ' Theta:{:2.5f}'.format(odometry_vector[4]), ' Psi: {:2.5f}'.format(odometry_vector[5]))
+    obj_neval += 1
     return obj_value
 
 
@@ -101,6 +115,8 @@ def jacobian_vect(odometry_vector, ndt_cloud, test_pc):
                 g[i] = np.sum(np.diag(np.matmul(q, np.matmul(sigma_inv, delq_delt[:, :, i].T))) *
                               np.exp(-0.5 * np.diag(np.matmul(q, np.matmul(sigma_inv, q.T)))))  # Check this out
             jacobian_val += g
+    global jacob_neval
+    jacob_neval += 1
     return jacobian_val
 
 
@@ -118,6 +134,8 @@ def hessian_vect(odometry_vector, ndt_cloud, test_pc):
     points_in_voxels = ndt_cloud.bin_in_voxels(transformed_pc)
     for key, value in points_in_voxels.items():
         if key in ndt_cloud.stats:
+            if value.ndim == 1:
+                value = np.atleast_2d(value)
             mu = ndt_cloud.stats[key]['mu']
             sigma = ndt_cloud.stats[key]['sigma']
             sigma_inv = np.linalg.inv(sigma)
@@ -135,6 +153,8 @@ def hessian_vect(odometry_vector, ndt_cloud, test_pc):
                     term5 = np.diag(np.matmul(q, np.matmul(sigma_inv, delq_delt[:, :, j].T)))
                     temp_hess[i, j] = np.sum(term1*(term2 + term3 - term4*term5))
             hessian_val += temp_hess
+    global hess_neval
+    hess_neval += 1
     return hessian_val
 
 
