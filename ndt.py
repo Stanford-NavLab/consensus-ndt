@@ -14,7 +14,7 @@ from scipy.optimize import minimize
 import odometry
 import diagnostics
 import integrity
-import mapping
+
 
 
 """
@@ -292,7 +292,6 @@ def ndt_approx(ref_pointcloud, horiz_grid_size=0.5, vert_grid_size=0.5):
     :param horiz_grid_size: Float describing required horizontal grid size (in m)
     :param vert_grid_size: Float describing required vertical grid size. LiDAR span will be significantly shorter ...
     ... vertically with different concentrations, hence the different sizes. Same as horiz_grid_size by default
-    :param offset_axis: 1x3 np array containing booleans for which axis to offset on
     :return: ndt_cloud: NDT approximated cloud for the given point cloud and grid size
     """
     ref_pointcloud = ref_pointcloud.reshape([-1, 4])
