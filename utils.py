@@ -63,11 +63,7 @@ def odometry_difference(odom_1_ref, odom_2_ref):
     A_2 = transforms3d.affines.compose(T_2, R_2, Z)
     # Since for the previous one, it was A_2 = A_delta*A_1
     A_delta = np.matmul(A_2, np.linalg.inv(A_1))
-    T_delta, R_delta, _, _ = transforms3d.affines.decompose44(A_delta)
-    delta_odom = np.zeros(6)
-    delta_odom[:3] = T_delta
-    phi_delta, theta_delta, psi_delta = transforms3d.euler.mat2euler(R_delta)
-    delta_odom[3:6] = np.rad2deg(np.array([phi_delta, theta_delta, psi_delta]))
+    delta_odom = affine_to_odometry(A_delta)
     return delta_odom
 
 
@@ -93,14 +89,17 @@ def combine_odometry(odom_1_ref, odom_12_delta):
     T_2 = odom_12_delta[:3]
     A_2 = transforms3d.affines.compose(T_2, R_2, Z)
     A_2_ref = np.matmul(A_2, A_1)
-    # TODO: Check the use of multiplication for combining two affine transforms (they wouldn't use this if it wasn't
-    #  as easy as matrix multiplication to combine two
-    T_2_ref, R_2_ref, _, _ = transforms3d.affines.decompose44(A_2_ref)
-    odom_2_ref = np.zeros(6)
-    odom_2_ref[:3] = T_2_ref
-    phi_2_ref, theta_2_ref, psi_2_ref = transforms3d.euler.mat2euler(R_2_ref)
-    odom_2_ref[3:6] = np.rad2deg(np.array([phi_2_ref, theta_2_ref, psi_2_ref]))
+    odom_2_ref = affine_to_odometry(A_2_ref)
     return odom_2_ref
+
+
+def affine_to_odometry(A):
+    T, R, _, _ = transforms3d.affines.decompose44(A)
+    phi, theta, psi = transforms3d.euler.mat2euler(R, 'rxyz')
+    odometry_vector = np.zeros(6)
+    odometry_vector[:3] = T
+    odometry_vector[3:6] = np.rad2deg(np.array([phi, theta, psi]))
+    return odometry_vector
 
 
 # Sending these functions to the end of the file as they're deprecated by using transforms3d.py
