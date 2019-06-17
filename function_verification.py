@@ -5,9 +5,64 @@ Author: Ashwin Kanhere
 Date created: 30th May 2019
 """
 import numpy as np
+from utils import combine_odometry
+from utils import odometry_difference
 import utils
 
 
+def verify_combine_odometry():
+    test_pt = np.array([[1, 1, 1]])
+    odom_1 = np.array([0.5, 0.5, 0.5, 0, 0, 0])
+    comb_1 = combine_odometry(odom_1, odom_1)
+    temp_1 = utils.transform_pc(odom_1, test_pt)
+    check_11 = utils.transform_pc(odom_1, temp_1)
+    check_12 = utils.transform_pc(comb_1, test_pt)
+    print(check_11 - check_12, check_11, check_12)
+    odom_2 = np.array([0, 0, 0, 90, 0, 0])
+    comb_2 = combine_odometry(odom_1, odom_2)
+    check_21 = utils.transform_pc(odom_2, temp_1)
+    check_22 = utils.transform_pc(comb_2, test_pt)
+    print(check_21 - check_22, check_21, check_22)
+    odom_3 = np.array([0.5, 0, 0, 90, 0, 0])
+    comb_3 = combine_odometry(odom_1, odom_3)
+    check_31 = utils.transform_pc(odom_3, temp_1)
+    check_32 = utils.transform_pc(comb_3, test_pt)
+    print(check_31 - check_32, check_31, check_32)
+    print('IT WORKS!!!')
+    return None
+
+
+def verify_odometry_difference():
+    print('Verifying odometry_difference')
+    test_pt = np.array([[1, 1, 1]])
+    odom_1 = np.array([0.5, 0.5, 0.5, 0, 0, 0])
+    temp_1 = utils.transform_pc(odom_1, test_pt)
+    comb_1 = np.array([1, 1, 1, 0, 0, 0])
+    odom_21 = odometry_difference(odom_1, comb_1)
+    check_11 = utils.transform_pc(odom_21, temp_1)
+    check_12 = utils.transform_pc(comb_1, test_pt)
+    print(check_11 - check_12, check_11, check_12)
+    print(odom_21)
+    comb_2 = np.array([0.5, -0.5, 0.5, 90, 0, 0])
+    odom_2 = odometry_difference(odom_1, comb_2)
+    check_21 = utils.transform_pc(odom_2, temp_1)
+    check_22 = utils.transform_pc(comb_2, test_pt)
+    print(check_21 - check_22, check_21, check_22)
+    print(odom_2)
+    comb_3 = np.array([1, -0.5, 0.5, 90, 0, 0])
+    odom_3 = odometry_difference(odom_1, comb_3)
+    check_31 = utils.transform_pc(odom_3, temp_1)
+    check_32 = utils.transform_pc(comb_3, test_pt)
+    print(check_31 - check_32, check_31, check_32)
+    print(odom_3)
+    print('THIS WORKS TOO!!!!!')
+    return None
+
+
+verify_combine_odometry()
+verify_odometry_difference()
+
+"""
 def verify_rot_matrix():
     test_angles = np.array([90, 45])
     test_axes = ['x', 'y', 'z']
@@ -82,3 +137,4 @@ verify_rot_matrix()
 verify_eul2dcm()
 verify_dcm2eul()
 verify_transform_pts()
+"""
