@@ -14,7 +14,8 @@ from scipy.optimize import minimize
 import odometry
 import diagnostics
 import integrity
-
+import numpy_indexed
+import time
 
 
 """
@@ -61,6 +62,7 @@ class NDTCloud:
         NOTE: key must be a tuple not a ndarray
         """
         self.local_to_global = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+        self.max_no_points = 0
         # Store an estimate of the transformation of the current scan origin to global origin
 
     def update_displacement(self, odometry_vector):
@@ -128,7 +130,7 @@ class NDTCloud:
                 self.first_center[i, :], (N, 3)))
         return points_repeated, voxel_centers
 
-    def bin_in_voxels(self, points_to_bin):
+    def old_bin_in_voxels(self, points_to_bin):
         """
         Function to bin given points into voxels in a dictionary approach
         :param points_to_bin: The points that are to be binned into the voxel clusters indexed by the voxel center tuple
@@ -142,6 +144,29 @@ class NDTCloud:
                 points_in_voxels[voxel_key] = np.vstack((points_in_voxels[voxel_key], points_repeated[i, :]))
             else:
                 points_in_voxels[voxel_key] = points_repeated[i, :]
+        return points_in_voxels
+
+    def bin_in_voxels(self, points_to_bin):
+        """
+        Function to bin given points into voxels in a dictionary approach
+        :param points_to_bin: The points that are to be binned into the voxel clusters indexed by the voxel center tuple
+        :return: points_in_voxel: A dictionary indexed by the tuple of the center of the bin
+        """
+        points_repeated, voxel_centers = self.find_voxel_center(points_to_bin)
+        dummy = numpy_indexed.group_by(voxel_centers, points_repeated)
+        points_in_voxels = {}
+        # TODO: Verify the results from the modified code that follows
+        for i in range(np.shape(dummy[0])[0]):
+            voxel_key = tuple(dummy[0][i])
+            points_in_voxels[voxel_key] = dummy[1][i]
+        """
+        for i in range(points_repeated.shape[0]):
+            voxel_key = tuple(voxel_centers[i, :])
+            if voxel_key in points_in_voxels:
+                points_in_voxels[voxel_key] = np.vstack((points_in_voxels[voxel_key], points_repeated[i, :]))
+            else:
+                points_in_voxels[voxel_key] = points_repeated[i, :]
+        """
         return points_in_voxels
 
     def find_likelihood(self, transformed_pc):
@@ -159,8 +184,11 @@ class NDTCloud:
             if key in self.stats:
                 sigma = self.stats[key]['sigma']
                 sigma_inv = np.linalg.inv(sigma)
+                # sigma_inv_det = np.linalg.det(sigma_inv)
+                # normal_factor = 1e-8
                 diff = np.atleast_2d(val - self.stats[key]['mu']) # It's a coincidence that the dimensions work out
-                likelihood += np.sum(np.exp(-0.5*np.diag(np.matmul(np.matmul(diff, sigma_inv), diff.T))))
+                # likelihood += (sigma_inv_det*normal_factor)*np.sum(np.exp(-0.5*np.diag(np.matmul(np.matmul(diff, sigma_inv), diff.T))))
+                likelihood += np.sum(np.exp(-0.5 * np.diag(np.matmul(np.matmul(diff, sigma_inv), diff.T))))
         return likelihood
 
     def display(self, plot_density=1.0):
@@ -171,12 +199,15 @@ class NDTCloud:
         :return: plot_points: The points sampled from the distribution that are to be plotted like any other PC
         """
         base_num_pts = 48  # 3 points per vertical and 4 per horizontal
-        num_pts = np.int(plot_density * base_num_pts)
         plot_points = np.empty([3, 0])
         plot_integrity = np.empty(0)
         for key, value in self.stats.items():
             sigma = self.stats[key]['sigma']
             mu = self.stats[key]['mu']
+            measure_num = self.stats[key]['no_points']
+            num_pts = np.int(3 * measure_num / self.max_no_points * plot_density * base_num_pts )
+            if num_pts < 2:
+                num_pts = 2
             if 'integrity' in self.stats[key]:
                 voxel_score = self.stats[key]['integrity'] * np.ones(num_pts)
             else:
@@ -196,7 +227,8 @@ class NDTCloud:
                 grid_plot_points[grid_plot_points[:, i] > grid_lim[1, i], i] = grid_lim[1, i]
             plot_points = np.hstack((plot_points, grid_plot_points.T))
             plot_integrity = np.append(plot_integrity, voxel_score)
-        return plot_points, plot_integrity
+        print('The maximum number of points per voxel is ', self.max_no_points)
+        return plot_points.T, plot_integrity
 
     def update_stats(self, points_in_voxels):
         """
@@ -217,12 +249,16 @@ class NDTCloud:
                 self.stats[k]['mu'] = m_new/self.stats[k]['no_points']
                 self.stats[k]['sigma'] = (s_new - np.matmul(np.reshape(self.stats[k]['mu'], [3, 1]),
                                                             np.reshape(m_new, [1, 3])))/self.stats[k]['no_points']
+                if self.stats[k]['no_points'] > self.max_no_points:
+                    self.max_no_points = self.stats[k]['no_points']
             else:
                 if no_in_voxel >= 5 and np.sum(np.isnan(np.array(k))) == 0:
                     self.stats[k] = {}  # Initialize empty dictionary before populating with values
                     self.stats[k]['mu'] = np.mean(v, axis=0)
                     self.stats[k]['sigma'] = np.cov(v, rowvar=False)
                     self.stats[k]['no_points'] = no_in_voxel
+                    if self.stats[k]['no_points'] > self.max_no_points:
+                        self.max_no_points = self.stats[k]['no_points']
         return None
 
     def eig_check(self):
@@ -273,35 +309,66 @@ class NDTCloud:
         loop_index = 0
         mu_points = np.zeros([N, 3])
         for key, val in self.stats.items():
-            mu_points[loop_index, :] = val['mu']
-            iscore_array[loop_index] = integrity.voxel_integrity(val, binned_points[key])
-            self.stats[key]['integrity'] = iscore_array[loop_index]
-            loop_index += 1
+            if key in binned_points:
+                mu_points[loop_index, :] = val['mu']
+                iscore_array[loop_index] = integrity.voxel_integrity(val, binned_points[key])
+                self.stats[key]['integrity'] = iscore_array[loop_index]
+                if np.isnan(iscore_array[loop_index]):
+                    print('NaN detected!')
+                loop_index += 1
+            else:
+                self.stats[key]['integrity'] = 0
         # avg_iscore = np.mean(iscore)
-        if not iscore_array.all():
-            Im = 0
-        else:
-            Im = integrity.solution_score(mu_points, iscore_array)
+        iscore_array[iscore_array == 0] = 1e-9
+        Im = integrity.solution_score(mu_points[:loop_index, :], iscore_array[:loop_index])
+        # The loop index is added to ensure that only points that have a corresponding voxel are used for IDOP
         return Im
+
+    def filter_voxels_integrity(self, integrity_limit=0.7):
+        """
+        Function to trim an ndt_cloud based on the integrity values of its voxels
+        :param self: The NDT approximation to be trimmed
+        :param integrity_limit: The minimum valid voxel integrity value
+        :return: ndt_cloud: The same NDT approximation, but now with all voxels below an integrity limit removed
+        """
+        delete_index = []
+        for key in self.stats.keys():
+            if self.stats[key]['integrity'] < integrity_limit:
+                delete_index.append(key)
+        for del_key in delete_index:
+            del self.stats[del_key]
+        return None
+
+    def points_in_filled_voxels(self, test_pc):
+        points_repeated, voxel_centers = self.find_voxel_center(test_pc)
+        dummy = numpy_indexed.group_by(voxel_centers, points_repeated)
+        repeated_voxel_points = np.empty([0, 3])
+        for i in range(np.shape(dummy[0])[0]):
+            voxel_key = tuple(dummy[0][i])
+            if voxel_key in self.stats:
+                repeated_voxel_points = np.vstack((repeated_voxel_points, dummy[1][i]))
+        voxel_points = np.unique(repeated_voxel_points, axis=0)
+        return voxel_points
 
 
 def ndt_approx(ref_pointcloud, horiz_grid_size=0.5, vert_grid_size=0.5):
     """
     Function to create single NDT approximation for given offset and point cloud
-    :param ref_pointcloud: [x, y, z, int] Nx4 numpy array of the reference point cloud
+    :param ref_pointcloud: [x, y, z, int] Nx4 or Nx3 numpy array of the reference point cloud
     :param horiz_grid_size: Float describing required horizontal grid size (in m)
     :param vert_grid_size: Float describing required vertical grid size. LiDAR span will be significantly shorter ...
     ... vertically with different concentrations, hence the different sizes. Same as horiz_grid_size by default
     :return: ndt_cloud: NDT approximated cloud for the given point cloud and grid size
     """
-    ref_pointcloud = ref_pointcloud.reshape([-1, 4])
+    if ref_pointcloud.shape[1] == 4:
+        ref_pointcloud = ref_pointcloud[:, :3]
     # Extract the size of the grid
     xlim = np.ceil(np.max(np.absolute(ref_pointcloud[:, 0]))) + 2*horiz_grid_size
     ylim = np.ceil(np.max(np.absolute(ref_pointcloud[:, 1]))) + 2*horiz_grid_size
     zlim = np.ceil(np.max(np.absolute(ref_pointcloud[:, 2]))) + 2*vert_grid_size
     # Create NDT map for reference grid
     ndt_cloud = NDTCloud(xlim, ylim, zlim, input_horiz_grid_size=horiz_grid_size, input_vert_grid_size=vert_grid_size)
-    ndt_cloud.update_cloud(ref_pointcloud[:, :3])
+    ndt_cloud.update_cloud(ref_pointcloud)
     return ndt_cloud
 
 
@@ -312,10 +379,9 @@ def display_ndt_cloud(ndt_cloud):
     :return: None
     """
     points_to_plot, pt_integrity = ndt_cloud.display(plot_density=0.1)
-    ndt_viewer = pptk.viewer(points_to_plot.T, pt_integrity)
+    ndt_viewer = pptk.viewer(points_to_plot, pt_integrity)
     ndt_viewer.color_map('hot')
     ndt_viewer.set(lookat=[0.0, 0.0, 0.0])
-    input('Press any button to move forward')
     return None
 
 

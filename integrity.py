@@ -45,6 +45,7 @@ def solution_score(points, point_iscore):
     """
     IDOP, DOP = calculate_dop(points, point_iscore)
     sol_iscore = DOP/IDOP
+    # print(np.mean(point_iscore))
     return sol_iscore
 
 
@@ -58,14 +59,23 @@ def voxel_integrity(voxel_dict, points):
     N = points.shape[0]  # Number of points
     mu = voxel_dict['mu']
     sigma_inv = np.linalg.inv(voxel_dict['sigma'])
-    q = points[:, :3] - mu
+    if points.ndim == 1:
+        q = np.atleast_2d(points[:3]) - mu
+    else:
+        q = points[:, :3] - mu
     r = np.sum(np.diag(np.matmul(q, np.matmul(sigma_inv, q.T))))
-    r = r / (N - 4)
-    T_upper = chi2.ppf(0.999, N - 4)
-    T_lower = chi2.ppf(0.001, N - 4)
-    scale_limit = 3
-    r_scaled = (2*scale_limit)*T_lower/(T_upper - T_lower) - (2*scale_limit)*r/(T_upper - T_lower) + scale_limit
-    Iv = sigmoid(r_scaled)
+    if N > 4:
+        T_upper = chi2.ppf(0.999, N - 4)
+        T_lower = chi2.ppf(0.001, N - 4)
+        r = r / (N - 4)
+        scale_limit = 3
+        r_scaled = (2 * scale_limit) * T_lower / (T_upper - T_lower) - (2 * scale_limit) * r / (
+                    T_upper - T_lower) + scale_limit
+        Iv = sigmoid(r_scaled)
+    else:
+        Iv = 0
+    if np.isnan(Iv):
+        print('Yet another Nan!')
     return Iv
 
 

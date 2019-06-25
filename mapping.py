@@ -14,7 +14,6 @@ from scipy.optimize import minimize
 import utils
 import transforms3d
 
-integrity_limit = 0.7
 
 # TODO: Check rotation and displacement conventions for the map. Does the optimizer return the distance of the pc from
 #  the map, or the distance of the map from the pc?
@@ -55,16 +54,6 @@ def pc_similarity(ndt_cloud, pc):
     return sim
 
 
-def filter_voxels_integrity(ndt_cloud):
-    delete_index = []
-    for key in ndt_cloud.stats.keys():
-        if ndt_cloud.stats[key]['integrity'] < integrity_limit:
-            delete_index.append(key)
-    for del_key in delete_index:
-        del ndt_cloud.stats[del_key]
-    return ndt_cloud
-
-
 def mapping(map_ndt, keyframe_pcs, sequential_odometry):
     # TODO: Check the transfom convention as mentioned in the header of mapping.py
     pc_num = len(keyframe_pcs)
@@ -88,6 +77,7 @@ def mapping(map_ndt, keyframe_pcs, sequential_odometry):
 
 
 def objective(map_odometry, map_ndt, keyframe_pcs, keyframe_ndts):
+    # TODO: Change map_odometry to a vector from a matrix
     # TODO: Check the value of the objective for some test cases
     # Since this is the objective function, the pcs and ndts will not be transformed for every iteration
     obj_val = 0
@@ -101,6 +91,7 @@ def objective(map_odometry, map_ndt, keyframe_pcs, keyframe_ndts):
 
 
 def jacobian(map_odometry, map_ndt, keyframe_pcs, keyframe_ndts):
+    # TODO: Jacobian format and values are wrong. The Jacobian should be a vector length of all parameters 6*pc_num here
     # TODO: Check the value of the gradient vector returned by this function
     jacob_val = np.zeros(6)
     pc_num = len(keyframe_pcs)
