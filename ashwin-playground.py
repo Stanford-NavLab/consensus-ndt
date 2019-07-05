@@ -7,10 +7,16 @@ Date Modified: 15th April 2019
 import numpy as np
 import pykitti
 import pptk
-import ndt
 import transforms3d
 import integrity
 import time
+from matplotlib import pyplot as plt
+from scipy.stats import chi2
+
+
+def sigmoid(x):
+    s = 1/(1 + np.exp(-x))
+    return s
 
 
 def extract_data():
@@ -145,6 +151,81 @@ def transforms_test():
     return None
 
 
+def paper_total_con():
+    points = np.array([[1, 0],
+                       [0.707, 0.707],
+                       [0, 1],
+                       [-0.707, 0.707],
+                       [-1, 0],
+                       [-0.707, -0.707],
+                       [0, -1],
+                       [0.707, -0.707],
+                       ])
+    metric_1 = np.array([1.0, 1.0, 1.0, 1.0, 0.5, 0.5, 0.5, 0.5])
+    metric_2 = np.array([1.0, 0.5, 1.0, 0.5, 1.0, 0.5, 1.0, 0.5])
+    H_1 = np.sum(np.diag(np.linalg.inv(np.matmul(points.T, np.matmul(np.diag(metric_1**2), points)))))
+    H_2 = np.sum(np.diag(np.linalg.inv(np.matmul(points.T, np.matmul(np.diag(metric_2**2), points)))))
+    DOP = np.sum(np.diag(np.linalg.inv( np.matmul(points.T, points))))
+    print(H_1)
+    print(H_2)
+    print(DOP)
+    print(DOP/H_1)
+    print(DOP/H_2)
+    return None
+
+
+def voxel_integrity(mu, sigma, points):
+    N = points.shape[0]  # Number of points
+    sigma_inv = np.linalg.inv(sigma)
+    if points.ndim == 1:
+        q = np.atleast_2d(points[:3]) - mu
+    else:
+        q = points[:, :3] - mu
+    r = np.sum(np.diag(np.matmul(q, np.matmul(sigma_inv, q.T))))
+    if N > 4:
+        T_upper = chi2.ppf(0.999, N - 4)
+        T_lower = chi2.ppf(0.001, N - 4)
+        r = r / (N - 4)
+        scale_limit = 3
+        r_scaled = (2 * scale_limit) * T_lower / (T_upper - T_lower) - (2 * scale_limit) * r / (
+                T_upper - T_lower) + scale_limit
+        Iv = sigmoid(r_scaled)
+    else:
+        Iv = 0
+    if np.isnan(Iv):
+        print('Yet another Nan!')
+    return Iv
+
+
+def vox_con():
+    points = np.array([[0.3, 0.3],
+                       [0.3, 0.35],
+                       [0.5, 0.45],
+                       [0.7, 0.66],
+                       [0.7, 0.74]])
+    mu = np.mean(points, axis=0)
+    cov = np.cov(points.T)
+    print(mu)
+    print(cov)
+    plot_points = np.random.multivariate_normal(mu, cov, 1000)
+    test_points = np.array([[0.8, 0.8],
+                       [0.8, 0.75],
+                       [0.7, 0.75],
+                       [0.7, 0.66],
+                       [0.7, 0.74]])
+    fig = plt.figure()
+    plt.scatter(plot_points[:, 0], plot_points[:, 1], s=1, c='b')
+    plt.scatter(test_points[:, 0], test_points[:, 1], s=36, c='r')
+    plt.xlim([0, 1])
+    plt.ylim([0, 1])
+    print(voxel_integrity(mu, cov, test_points))
+    plt.show()
+
+    return None
+
+
+#vox_con()
+paper_total_con()
 #transforms_test()
-ndt_test()
+#ndt_test()
 #integrity_test()
