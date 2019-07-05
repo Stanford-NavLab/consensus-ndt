@@ -90,19 +90,6 @@ def objective(map_odometry, map_ndt, keyframe_pcs, keyframe_ndts):
     return obj_val
 
 
-def jacobian(map_odometry, map_ndt, keyframe_pcs, keyframe_ndts):
-    # TODO: Jacobian format and values are wrong. The Jacobian should be a vector length of all parameters 6*pc_num here
-    # TODO: Check the value of the gradient vector returned by this function
-    jacob_val = np.zeros(6)
-    pc_num = len(keyframe_pcs)
-    for i in range(pc_num):
-        jacob_val += odometry.jacobian(map_odometry[i, :], map_ndt, keyframe_pcs[i])
-        for j in range(i + 1, pc_num):
-            pc_delta_odom = utils.odometry_difference(map_odometry[i, :], map_odometry[j, :])
-            jacob_val += odometry.jacobian(pc_delta_odom, keyframe_ndts[i], keyframe_pcs[j])
-    return jacob_val
-
-
 def odometry_from_map(sequential_odometry):
     # TODO: Check odometry_from_map function implementation
     N = sequential_odometry.shape[0]
@@ -111,5 +98,10 @@ def odometry_from_map(sequential_odometry):
     for i in range(1, N):
         map_odometry[i, :] = utils.combine_odometry(map_odometry[i-1, :], sequential_odometry[i, :])
     return map_odometry
+
+
+def combine_pc_for_map(keyframe_pcs, sequential_odoms, map_ndt):
+    # TODO: Write this function
+    return map_ndt
 
 
