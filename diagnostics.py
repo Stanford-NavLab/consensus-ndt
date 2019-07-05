@@ -8,17 +8,27 @@ Date created: 10th June 2019
 import numpy as np
 from matplotlib import pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
-import integrity
 import odometry
 import utils
 import pptk
+from sklearn.neighbors import NearestNeighbors
 
 
-def display_voxel_points(key, voxel_dict, points=np.array([]), density=1.0, horiz_size=1.0, vert_size=1.0):
+def display_voxel_points(key, voxel_stats, points=np.array([]), density=1.0, horiz_size=1.0, vert_size=1.0):
+    """
+    Function to display points containted in an NDT-voxel and the corresponding Gaussian
+    :param key: Identifier for NDT-voxel
+    :param voxel_stats: Statistics of the NDT-voxel
+    :param points: Points binned inside said NDT voxel
+    :param density: The plot density for the Gaussian distribution
+    :param horiz_size: Horizontal size of the voxel
+    :param vert_size: Vertical size of the voxel
+    :return: None
+    """
     plt.interactive(False)
     center = np.array(key)
-    mu = voxel_dict['mu']
-    sigma = voxel_dict['sigma']
+    mu = voxel_stats['mu']
+    sigma = voxel_stats['sigma']
     plot_number = np.int(density*100)
     plot_dist = np.random.multivariate_normal(mu, sigma, plot_number)
     fig = plt.figure()
@@ -34,6 +44,16 @@ def display_voxel_points(key, voxel_dict, points=np.array([]), density=1.0, hori
 
 
 def check_gradient(objective, jacobian, ndt_cloud, test_pc, odometry_vector):
+    """
+    Manual function to check analytical gradient with the numerical approximation
+    :param objective: Target objective function (for which the gradient is to be checked)
+    :param jacobian: Analytical Jacobian function for the given objective function
+    :param ndt_cloud: NDT Cloud Parameter for objective and gradient
+    :param test_pc: PC parameter for functions
+    :param odometry_vector: Point at which the Jacobian needs to be checked
+    :return: jacobian_error: Vector containing the difference between analytical and numerical Jacobian
+    :return: jacob_error_norm: Magnitude of jacobian error
+    """
     delta = 1.5e-08
     odometry = odometry_vector
     jacob_val = np.zeros(6)
@@ -48,18 +68,28 @@ def check_gradient(objective, jacobian, ndt_cloud, test_pc, odometry_vector):
     print('The analytical jacobian is ', analytical_jacob)
     print('The numerical jacobian vector is', jacob_val)
     print('The jacobian vector error is ', jacobian_error)
-    print('The magnitude of the jacobian error is', np.linalg.norm(jacobian_error))
-    return jacobian_error
+    jacob_error_norm = np.linalg.norm(jacobian_error)
+    print('The magnitude of the jacobian error is', jacob_error_norm)
+    return jacobian_error, jacob_error_norm
 
 
 def objective_variation(ndt_cloud, test_pc, axis=0, limit=0.5, num_vals=40):
+    """
+    Function to plot the variation in the objective function about a particular axis of the objective function
+    :param ndt_cloud: NDT Cloud Parameter for objective and gradient
+    :param test_pc: PC parameter for functions
+    :param axis: Axis about which the variation in the objective is being checked
+    :param limit: Limit of the variation about origin for which the objective is evaluated
+    :param num_vals: The number of points at which the objective is evaluated
+    :return:
+    """
     odom_dim = axis
     objective_value = np.zeros(num_vals)
     dim_variation = np.linspace(-limit, limit, num_vals)
     for i in range(num_vals):
         inverse_odom_value = utils.invert_odom_transfer(np.array([0.11192455, - 0.31511185,  0.01197815,  0.24025847,
                                                                   0.06658534,  0.90697335]))
-        #print(inverse_odom_value)
+        # print(inverse_odom_value)
         odom_value = inverse_odom_value
         odom_value[odom_dim] += dim_variation[i]
         objective_value[i] = odometry.objective(odom_value, ndt_cloud, test_pc)
@@ -74,12 +104,24 @@ def objective_variation(ndt_cloud, test_pc, axis=0, limit=0.5, num_vals=40):
 
 
 def ind_lidar_odom(test_pc, ref_pc):
+    """
+    Function to find the ICP odometry between two point clouds
+    :param test_pc:
+    :param ref_pc:
+    :return: icp_odometry : Transform that maps points in test_pc to ref_pc (similar to the existing NDT implementation)
+    """
     A = icp(ref_pc[:, :3], test_pc[:, :3])
     icp_odometry = utils.affine_to_odometry(A[0])
     return icp_odometry
 
 
 def plot_consec_pc(pc_0, pc_1):
+    """
+    Tool to plot two pointclouds on the same pptk viewer
+    :param pc_0:
+    :param pc_1:
+    :return:
+    """
     color_index = np.hstack((np.ones(pc_0.shape[0]), np.zeros(pc_1.shape[0])))
     stacked_pc = np.vstack((pc_0, pc_1))
     view = pptk.viewer(stacked_pc, color_index)
@@ -90,12 +132,9 @@ def plot_consec_pc(pc_0, pc_1):
 # ICP Code taken from https://github.com/ClayFlannigan/icp/blob/master/icp.py
 ########################################################
 
-import numpy as np
-from sklearn.neighbors import NearestNeighbors
-
 
 def best_fit_transform(A, B):
-    '''
+    """
     Calculates the least-squares best-fit transform that maps corresponding points A to B in m spatial dimensions
     Input:
       A: Nxm numpy array of corresponding points
@@ -104,7 +143,7 @@ def best_fit_transform(A, B):
       T: (m+1)x(m+1) homogeneous transformation matrix that maps A on to B
       R: mxm rotation matrix
       t: mx1 translation vector
-    '''
+    """
 
     assert A.shape == B.shape
 
