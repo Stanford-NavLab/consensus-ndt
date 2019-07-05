@@ -49,7 +49,15 @@ def odometry(ndt_cloud, test_pc):
 
 
 def search_initial(ndt_cloud, test_pc, limit=0.5, case_num=10):
-    t0= time.time()
+    """
+    Returns an initial x, y guess based on a global grid evaluation of the objective function
+    :param ndt_cloud:
+    :param test_pc:
+    :param limit: The search limit for the grid search (about the origin)
+    :param case_num: Number of x and y coordinates (respectively) for which the grid search is performec
+    :return: initial_odom: Initial guess of the minimizing point
+    """
+    t0 = time.time()
     print('Searching for initial point')
     x_search = np.linspace(-limit, limit, case_num)
     grid_objective = np.zeros([case_num, case_num])
@@ -214,6 +222,7 @@ def hessian_vect(odometry_vector, ndt_cloud, test_pc):
             temp_hess = term1 + term2 + term3
             hessian_val += temp_hess
             """
+            # WHAT FOLLOWS IS THE UNVECTORIZED IMPLEMENTATION OF HESSIAN CALCULATION
             temp_hess = np.zeros([6, 6])
             temp_check_1 = np.zeros([6, 6])
             temp_check_2 = np.zeros([6, 6])
@@ -337,6 +346,7 @@ def find_delqdelt_vect(odometry_vector, points):
     delq_delt[:, :3, :3] = np.broadcast_to(np.eye(3), [N, 3, 3])
     delq_delt[:, :, 3:] = np.transpose(np.pi / 180.0 * np.matmul(param_mat.T, points.T))
     """
+    # WHAT FOLLOWS IS THE UNVECTORIZED IMPLEMENTATION OF FIRST DERIVATIVE CALCULATION
     param_mat = np.zeros([3, 3, 3])
     param_mat[0, :, :] = np.array([[0, (-s1 * s3 + c3 * c1 * s2), (c1 * s3 + s1 * c3 * s2)],
                                    [0, - (s1 * c3 + c1 * s2 * s3), (c1 * c3 - s1 * s2 * s3)],
