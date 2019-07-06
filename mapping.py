@@ -16,12 +16,11 @@ import transforms3d
 
 
 # TODO: Check rotation and displacement conventions for the map. Does the optimizer return the distance of the pc from
-#  the map, or the distance of the map from the pc?
+#  the map, or the distance of the map from the pc? - Distance of the PC from the map
 
 # TODO: Populate docstring for all functions once they're tested and working
 
-# TODO: Fix broken function references
-
+# TODO: Check implementation of all functions
 
 def pc_similarity(ndt_cloud, pc):
     """
@@ -54,38 +53,37 @@ def pc_similarity(ndt_cloud, pc):
     return sim
 
 
-def mapping(map_ndt, keyframe_pcs, sequential_odometry):
-    # TODO: Check the transfom convention as mentioned in the header of mapping.py
-    pc_num = len(keyframe_pcs)
+def find_mapping_odom(map_ndt, keyframe_pcs, sequential_odometry):
+    # TODO: Check the transform convention as mentioned in the header of mapping.py
+    """
+    Implements the mapping step of the function
+    :param map_ndt: NDT approximation of the map created prior to current keyframe
+    :param keyframe_pcs: Point clouds that belong to the current keyframe
+    :param sequential_odometry: Laser odometry between sequential point clouds as calculated by the odometry process
+    :return: map_odom_solution: Transformation of PCs to map NDT reference
+    """
     keyframe_ndts = []
     horiz_grid_size = map_ndt.horiz_grid_size
     vert_grid_size = map_ndt.vert_grid_size
-    initial_map_odometry = odometry_from_map(sequential_odometry)
+    initial_map_odometry_matrix = odometry_from_map(sequential_odometry)
+    initial_map_odometry = np.reshape(initial_map_odometry_matrix.T, [1, -1])[0, :]
     for pc in keyframe_pcs:
         keyframe_ndts.append(ndt_approx(pc, horiz_grid_size, vert_grid_size))
-    res = minimize(objective, initial_map_odometry, method='BFGS', jac=jacobian,
-                   args=(map_ndt, keyframe_pcs, keyframe_ndts), options={'disp': True})
-    map_odom_solution = res.x
-    for i in range(pc_num):
-        pc = keyframe_pcs[i]
-        pc_map_odom = map_odom_solution[i, :]
-        # TODO: Check if this is the right vector to be transforming the pc by
-        transformed_pc = utils.transform_pc(pc_map_odom, pc)
-        map_ndt.update_cloud(transformed_pc)
-    map_ndt.update_displacement(map_odom_solution[-1, :])
-    return map_odom_solution, map_ndt
+    res = minimize(objective, initial_map_odometry, method='Nelder-Mead', args=(map_ndt, keyframe_pcs, keyframe_ndts),
+                   options={'disp': True})
+    map_odom_solution_vector = res.x
+    map_odom_solution = np.reshape(map_odom_solution_vector, [-1, 6])
+    return map_odom_solution
 
 
 def objective(map_odometry, map_ndt, keyframe_pcs, keyframe_ndts):
-    # TODO: Change map_odometry to a vector from a matrix
-    # TODO: Check the value of the objective for some test cases
     # Since this is the objective function, the pcs and ndts will not be transformed for every iteration
     obj_val = 0
     pc_num = len(keyframe_pcs)
     for i in range(pc_num):
-        obj_val += odometry.objective(map_odometry[i, :], map_ndt, keyframe_pcs[i])
+        obj_val += odometry.objective(map_odometry[6*i: 6*(i+1)], map_ndt, keyframe_pcs[i])
         for j in range(i+1, pc_num):
-            pc_delta_odom = utils.odometry_difference(map_odometry[i, :], map_odometry[j, :])
+            pc_delta_odom = utils.odometry_difference(map_odometry[6*i:6*(i+1)], map_odometry[6*j:6*(j+1)])
             obj_val += odometry.objective(pc_delta_odom, keyframe_ndts[i], keyframe_pcs[j])
     return obj_val
 
@@ -100,8 +98,19 @@ def odometry_from_map(sequential_odometry):
     return map_odometry
 
 
-def combine_pc_for_map(keyframe_pcs, sequential_odoms, map_ndt):
-    # TODO: Write this function
+def combine_pc_for_map(keyframe_pcs, mapping_odom, map_ndt):
+    """
+    Function to update the map using the mapping solution
+    :param keyframe_pcs: PCs belonging to the current keyframe
+    :param mapping_odom: Solution to the mapping objective function
+    :param map_ndt: NDT approximation for the map upto the previous keyframe
+    :return:
+    """
+    for idx, pc in enumerate(keyframe_pcs):
+        # Transform points to the LiDAR's reference when the measurements were taken
+        inv_odom = utils.invert_odom_transfer(mapping_odom[idx, :])
+        trans_pc = utils.transform_pc(inv_odom, pc)
+        map_ndt.update_cloud(trans_pc)
     return map_ndt
 
 
