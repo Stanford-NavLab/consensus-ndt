@@ -76,5 +76,5 @@ def load_kitti_pcs(start, end, pc_diff=1, pc_mode='laptop'):
     kitti_pcs = []
     data, num_frames = load_kitti_data(start, end, diff=pc_diff, mode=pc_mode)
     for idx in range(num_frames):
-        kitti_pcs.append(data.get_velo(idx))
+        kitti_pcs.append(data.get_velo(idx)[:, :3])
     return kitti_pcs
