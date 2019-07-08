@@ -1,5 +1,5 @@
 """
-main_ndt_slam_server.py
+implementation_server.py
 File for the offline implementation of NDT-SLAM on the Talbot 330 resident powerhouse machine
 Author: Ashwin Kanhere
 Date Created: 16th June 2019
@@ -15,7 +15,7 @@ import utils
 from matplotlib import pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
-
+# TODO: Clean up this file and break into functions
 folder_location = '/home/kanhere2/ion-gnss-19/uiuc_dataset/'
 filename = 'pc_'
 ext = '.csv'
