@@ -12,6 +12,8 @@ import integrity
 import time
 from matplotlib import pyplot as plt
 from scipy.stats import chi2
+import ndt
+import utils
 
 
 def sigmoid(x):
@@ -119,7 +121,6 @@ def integrity_test():
     return None
 
 
-
 def transforms_test():
     angles = [0, np.pi/4, np.pi/3]
     for i in range(3):
@@ -158,19 +159,35 @@ def paper_total_con():
                        [-0.707, 0.707],
                        [-1, 0],
                        [-0.707, -0.707],
-                       [0, -1],
-                       [0.707, -0.707],
                        ])
-    metric_1 = np.array([1.0, 1.0, 1.0, 1.0, 0.5, 0.5, 0.5, 0.5])
-    metric_2 = np.array([1.0, 0.5, 1.0, 0.5, 1.0, 0.5, 1.0, 0.5])
-    H_1 = np.sum(np.diag(np.linalg.inv(np.matmul(points.T, np.matmul(np.diag(metric_1**2), points)))))
-    H_2 = np.sum(np.diag(np.linalg.inv(np.matmul(points.T, np.matmul(np.diag(metric_2**2), points)))))
-    DOP = np.sum(np.diag(np.linalg.inv( np.matmul(points.T, points))))
-    print(H_1)
-    print(H_2)
+    original_points = np.array([[1, 0],
+                                [0.707, 0.707],
+                                [0, 1],
+                                [-0.707, 0.707],
+                                [-1, 0],
+                                [-0.707, -0.707],
+                                [0, -1],
+                                [0.707, -0.707],
+                       ])
+    metric_1 = np.array([1.0, 1.0, 1.0, 0.5, 0.5, 0.5])
+    metric_2 = np.array([1.0, 0.5, 1.0, 0.5, 1.0, 0.5])
+    H_inv_1 = np.matmul(points.T, np.matmul(np.diag(metric_1**2), points))
+    H_inv_2 = np.matmul(points.T, np.matmul(np.diag(metric_2**2), points))
+    H_mat_1 = np.linalg.inv(H_inv_1)
+    H_mat_2 = np.linalg.inv(H_inv_2)
+    H_1 = np.sqrt(np.sum(np.diag(H_mat_1)))
+    H_2 = np.sqrt(np.sum(np.diag(H_mat_2)))
+    DOP = np.sqrt(np.sum(np.diag(np.linalg.inv(np.matmul(original_points.T, original_points)))))
+    # print(H_1)
+    # print(H_2)
     print(DOP)
     print(DOP/H_1)
     print(DOP/H_2)
+    w1, v1 = np.linalg.eigh(H_mat_1)
+    w2, v2 = np.linalg.eigh(H_mat_2)
+    wDOP, _ = np.linalg.eigh(np.linalg.inv(np.matmul(points.T, points)))
+    w_inv_1, _ = np.linalg.eigh(H_inv_1)
+    w_inv_2, _ = np.linalg.eigh(H_inv_2)
     return None
 
 
@@ -224,8 +241,66 @@ def vox_con():
     return None
 
 
+def test_mapping_func():
+    data = extract_data()
+    sequence_ground_truth = utils.kitti_sequence_poses(data)
+    mapping_ground_truth = np.zeros_like(sequence_ground_truth)
+    N = sequence_ground_truth.shape[0]
+    for i in range(N):
+        print(i)
+    index_list = [0, 30, 60]
+    return None
+
+
+def total_metric_test():
+    points = np.array([[1, 0],
+                       [0.707, 0.707],
+                       [0, 1],
+                       [-0.707, 0.707],
+                       [-1, 0],
+                       [-0.707, -0.707]
+                      ])
+    metric_1 = np.array([1.0, 1.0, 1.0, 0.5, 0.5, 0.5])
+    metric_2 = np.array([1.0, 0.5, 1.0, 0.5, 1.0, 0.5])
+    H_inv_1 = np.matmul(points.T, np.matmul(np.diag(metric_1**2), points))
+    H_inv_2 = np.matmul(points.T, np.matmul(np.diag(metric_2**2), points))
+    H_mat_1 = np.linalg.inv(H_inv_1)
+    H_mat_2 = np.linalg.inv(H_inv_2)
+    H_1 = np.sqrt(np.sum(np.diag(H_mat_1)))
+    H_2 = np.sqrt(np.sum(np.diag(H_mat_2)))
+    DOP = np.sqrt(np.sum(np.diag(np.linalg.inv(np.matmul(points.T, points)))))
+    DOP_H = np.linalg.inv(np.matmul(points.T, points))
+    DOP_original = np.matmul(points.T, points)
+    # print(H_1)
+    # print(H_2)
+    print(DOP)
+    print(DOP/H_1)
+    print(DOP/H_2)
+    # Extracting eigenvalues of the system
+    print('Printing the values for the DOP matrix')
+    w_DOP, v_DOP = np.linalg.eigh(np.linalg.inv(np.matmul(points.T, points)))
+    print('DOP eigenvalues', w_DOP)
+    print('DOP eigenvectors', v_DOP)
+    w_inv_1, v_inv_1 = np.linalg.eigh(H_mat_1)
+    w_inv_2, v_inv_2 = np.linalg.eigh(H_mat_2)
+    print('Printing the values for the original matrix')
+    print('First H eigenvalues', w_inv_1)
+    print('First H eigenvectors', v_inv_1)
+    print('Second H eigenvalues', w_inv_2)
+    print('Second H eigenvectors', v_inv_2)
+    print('Printing the values for the matrices before inversion')
+    w_1, v_1 = np.linalg.eigh(H_inv_1)
+    w_2, v_2 = np.linalg.eigh(H_inv_2)
+    print('Printing the values for the original matrix')
+    print('First H eigenvalues', w_1)
+    print('First H eigenvectors', v_1)
+    print('Second H eigenvalues', w_2)
+    print('Second H eigenvectors', v_2)
+    return None
+
 #vox_con()
-paper_total_con()
+#paper_total_con()
+total_metric_test()
 #transforms_test()
 #ndt_test()
 #integrity_test()
