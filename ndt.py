@@ -320,7 +320,7 @@ class NDTCloud:
                 self.stats[key]['integrity'] = 0
         # avg_iscore = np.mean(iscore)
         iscore_array[iscore_array == 0] = 1e-9
-        Im = integrity.solution_score(mu_points[:loop_index, :], iscore_array[:loop_index])
+        Im = integrity.solution_score(mu_points[:loop_index, :], iscore_array[:loop_index], points)
         # The loop index is added to ensure that only points that have a corresponding voxel are used for IDOP
         return Im
 
