@@ -12,7 +12,6 @@ from ndt import ndt_approx
 import odometry
 from scipy.optimize import minimize
 import utils
-import transforms3d
 
 
 # TODO: Check rotation and displacement conventions for the map. Does the optimizer return the distance of the pc from
@@ -53,7 +52,7 @@ def pc_similarity(ndt_cloud, pc):
     return sim
 
 
-def find_mapping_odom(map_ndt, keyframe_pcs, sequential_odometry):
+def mapping(map_ndt, keyframe_pcs, sequential_odometry):
     # TODO: Check the transform convention as mentioned in the header of mapping.py
     """
     Implements the mapping step of the function
@@ -89,7 +88,6 @@ def objective(map_odometry, map_ndt, keyframe_pcs, keyframe_ndts):
 
 
 def odometry_from_map(sequential_odometry):
-    # TODO: Check odometry_from_map function implementation
     N = sequential_odometry.shape[0]
     map_odometry = np.zeros_like(sequential_odometry)
     map_odometry[0, :] = sequential_odometry[0, :]
@@ -106,8 +104,10 @@ def combine_pc_for_map(keyframe_pcs, mapping_odom, map_ndt):
     :param map_ndt: NDT approximation for the map upto the previous keyframe
     :return:
     """
+    mapping_odom = np.atleast_2d(mapping_odom)
     for idx, pc in enumerate(keyframe_pcs):
         # Transform points to the LiDAR's reference when the measurements were taken
+        pc = pc[:, :3]  # To trim the pointcloud incase it isn't trimmed
         inv_odom = utils.invert_odom_transfer(mapping_odom[idx, :])
         trans_pc = utils.transform_pc(inv_odom, pc)
         map_ndt.update_cloud(trans_pc)
