@@ -33,7 +33,7 @@ def calculate_dop(points, iscore=0):
     G_dash = np.atleast_2d(iscore).T*G_norm
     H_dash = np.linalg.inv(np.matmul(G_dash.T, G_dash))
     IDOP = np.sqrt(np.sum(np.diag(H_dash)))
-    return IDOP
+    return IDOP, np.sum(iscore)
 
 
 def solution_score(points, point_iscore, test_pc):
@@ -43,11 +43,11 @@ def solution_score(points, point_iscore, test_pc):
     :param point_iscore: The integrity score corresponding to these points
     :return: sol_iscore: The final solution's integrity score
     """
-    IDOP= calculate_dop(points, point_iscore)
-    DOP = calculate_dop(test_pc)
+    IDOP, iscore_sum = calculate_dop(points, point_iscore)
+    DOP, _ = calculate_dop(test_pc)
     sol_iscore = DOP/IDOP
     # print(np.mean(point_iscore))
-    return sol_iscore
+    return sol_iscore, iscore_sum
 
 
 def voxel_integrity(voxel_dict, points):
