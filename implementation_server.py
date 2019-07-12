@@ -186,4 +186,5 @@ def old_run():
 
 
 
-fault_consensus()
+#fault_consensus()
+consensus_optimization()
