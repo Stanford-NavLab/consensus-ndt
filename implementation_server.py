@@ -47,6 +47,35 @@ def fault_consensus():
 
 
 def consensus_optimization():
+    uiuc_pcs = data_utils.load_uiuc_pcs(500, 550, diff=1, mode='server')
+    ndt_odom = np.zeros([50, 6])
+    icp_odom = np.zeros([50, 6])
+    consensus_odom = np.zeros([50, 6])
+    cand_transform = np.array([0.3, 0.3, 0.001, 0.25, 0.25, 0.5])
+    for idx in range(0, 50):
+        t0 = time.time()
+        print('Loading point cloud number: ', idx)
+        curr_pc = uiuc_pcs[idx]
+        trans_pc = utils.transform_pc(cand_transform, curr_pc)
+        trans_ndt = ndt.ndt_approx(trans_pc)
+        print('Calculating traditional odometry:', idx)
+        curr_ndt_odom_inv = odometry.odometry(trans_ndt, curr_pc)
+        print('Calculating consensus odometry:', idx)
+        curr_con_odom_inv = odometry.consensus_odometry(trans_ndt, curr_pc)
+        curr_icp_odom = diagnostics.ind_lidar_odom(curr_pc, trans_pc)
+        print('NDT ODOMETRY: ', curr_ndt_odom_inv)
+        print('ICP ODOMETRY: ', curr_icp_odom)
+        print('Consensus ODOMETRY: ', curr_con_odom_inv)
+        ndt_odom[idx, :] = utils.invert_odom_transfer(curr_ndt_odom_inv)
+        icp_odom[idx, :] = curr_icp_odom
+        consensus_odom[idx, :] = utils.invert_odom_transfer(curr_con_odom_inv)
+        print('PC: ', idx, 'Run Time: ', time.time() - t0)
+    np.save('saved_ndt_odom', ndt_odom)
+    np.save('saved_icp_odom', icp_odom)
+    np.save('saved_con_odom', consensus_odom)
+    print(np.mean(ndt_odom - cand_transform, axis=1))
+    print(np.mean(consensus_odom - cand_transform, axis=1))
+    print(np.mean(icp_odom - cand_transform, axis=1))
     return None
 
 
