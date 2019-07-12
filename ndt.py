@@ -320,9 +320,9 @@ class NDTCloud:
                 self.stats[key]['integrity'] = 0
         # avg_iscore = np.mean(iscore)
         iscore_array[iscore_array == 0] = 1e-9
-        Im = integrity.solution_score(mu_points[:loop_index, :], iscore_array[:loop_index], points)
+        Im, iscore_sum = integrity.solution_score(mu_points[:loop_index, :], iscore_array[:loop_index], points)
         # The loop index is added to ensure that only points that have a corresponding voxel are used for IDOP
-        return Im
+        return Im, iscore_sum
 
     def filter_voxels_integrity(self, integrity_limit=0.7):
         """
@@ -372,13 +372,13 @@ def ndt_approx(ref_pointcloud, horiz_grid_size=0.5, vert_grid_size=0.5):
     return ndt_cloud
 
 
-def display_ndt_cloud(ndt_cloud):
+def display_ndt_cloud(ndt_cloud, point_density = 0.1):
     """
     Function to display NDT approximation from a collection of NDT clouds
     :param ndt_cloud: NDT point cloud approximation
     :return: None
     """
-    points_to_plot, pt_integrity = ndt_cloud.display(plot_density=0.1)
+    points_to_plot, pt_integrity = ndt_cloud.display(plot_density= point_density)
     ndt_viewer = pptk.viewer(points_to_plot, pt_integrity)
     ndt_viewer.color_map('hot')
     ndt_viewer.set(lookat=[0.0, 0.0, 0.0])
