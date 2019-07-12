@@ -23,8 +23,8 @@ hess_neval = 0
 def odometry(ndt_cloud, test_pc):
     """
     Function to find the best traansformation (in the form of a translation, Euler angle vector)
-    :param test_pc: Point cloud which has to be matched to the existing NDT approximation
-    :return: odom_vector: The resultant odometry vector (Euler angles in degrees)
+    :param ndt_cloud: NDT approximation of the prior representation
+    :return: test_pc: Point cloud which has to be matched to the existing NDT approximation
     """
     test_xyz = test_pc[:, :3]
     # TODO: Change the initial after the test is done
@@ -312,8 +312,8 @@ def hessian(odometry_vector, ndt_cloud, test_pc):
 def consensus_odometry(ndt_cloud, test_pc):
     """
     Function to find the best traansformation (in the form of a translation, Euler angle vector)
-    :param test_pc: Point cloud which has to be matched to the existing NDT approximation
-    :return: odom_vector: The resultant odometry vector (Euler angles in degrees)
+    :param ndt_cloud: NDT approximation of the prior representation
+    :return: test_pc: Point cloud which has to be matched to the existing NDT approximation
     """
     test_xyz = test_pc[:, :3]
     # TODO: Change the initial after the test is done
@@ -323,18 +323,45 @@ def consensus_odometry(ndt_cloud, test_pc):
     # xlim, ylim, zlim = find_pc_limits(test_xyz)
     # odometry_bounds = Bounds([-xlim, -ylim, -zlim, -180.0, -90.0, -180.0], [xlim, ylim, zlim, 180.0, 90.0, 180.0])
     # TODO: Any way to implement bounds on the final solution?
-    res1 = minimize(objective, initial_odom, method='Newton-CG', jac=jacobian_vect,
-                   hess=hessian_vect, args=(ndt_cloud, test_xyz), options={'disp': True, 'maxiter': 15})
+    res1 = minimize(consensus_objective, initial_odom, method='Newton-CG', jac=consensus_jacobian,
+                   hess=consensus_hessian, args=(ndt_cloud, test_xyz), options={'disp': True, 'maxiter': 15})
     # res = minimize(objective, initial_odom, method='BFGS', args=(ndt_cloud, test_xyz), options={'disp' : True})
     temp_odom_vector = res1.x
     transformed_xyz = utils.transform_pc(temp_odom_vector, test_xyz)
     ndt_cloud.find_integrity(transformed_xyz)
     ndt_cloud.filter_voxels_integrity(integrity_limit=0.7)
-    res2 = minimize(objective, temp_odom_vector, method='Newton-CG', jac=jacobian_vect,
-                   hess=hessian_vect, args=(ndt_cloud, test_xyz), options={'disp': True, 'maxiter': 10})
+    res2 = minimize(consensus_objective, temp_odom_vector, method='Newton-CG', jac=consensus_jacobian,
+                   hess=consensus_hessian, args=(ndt_cloud, test_xyz), options={'disp': True, 'maxiter': 10})
     # Return odometry in navigational frame of reference
     odom_vector = res2.x
     return odom_vector
+
+
+def consensus_objective(odometry_vector, ndt_cloud, test_pc):
+    """
+    A function that combines functions for transformation of a point cloud and the computation of likelihood (score)
+    :param odometry_vector: Candidate odometry vector
+    :param ndt_cloud: The NDT cloud with respect to which the odometry is required
+    :param test_pc: Input point cloud
+    :return: objective_val: Maximization objective which is the likelihood of transformed point cloud for the given NDT
+    """
+    global obj_neval
+    global jacob_neval
+    global hess_neval
+    transformed_pc = utils.transform_pc(odometry_vector, test_pc)
+    _, iscore_sum = ndt_cloud.find_integrity(transformed_pc)
+    obj_value = -1 * iscore_sum
+    # print(obj_value)
+    print('Objective iteration: {:4d}'.format(obj_neval), 'Jacobian iteration: {:4d}'.format(jacob_neval),
+          'Hessian iteration: {:4d}'.format(hess_neval), 'Objective Value: {:10.4f}'.format(obj_value))
+    """
+    , ' Odometry:',
+          ' x: {:2.5f}'.format(odometry_vector[0]), ' y: {:2.5f}'.format(odometry_vector[1]),
+          ' z: {:2.5f}'.format(odometry_vector[2]), ' Phi: {:2.5f}'.format(odometry_vector[3]),
+          ' Theta:{:2.5f}'.format(odometry_vector[4]), ' Psi: {:2.5f}'.format(odometry_vector[5])
+    """
+    obj_neval += 1
+    return obj_value
 
 
 def consensus_jacobian(odometry_vector, ndt_cloud, test_pc):
@@ -348,12 +375,16 @@ def consensus_jacobian(odometry_vector, ndt_cloud, test_pc):
     jacobian_val = np.zeros(6)
     transformed_pc = utils.transform_pc(odometry_vector, test_pc)
     points_in_voxels = ndt_cloud.bin_in_voxels(transformed_pc)
+    iscore_dict, rbar_dict, k_dict = ndt_cloud.optimization_integrity(transformed_pc)
     for key, value in points_in_voxels.items():
-        if key in ndt_cloud.stats:
+        if key in ndt_cloud.stats and key in iscore_dict:
             # Vectorized implementation
             mu = ndt_cloud.stats[key]['mu']
             sigma = ndt_cloud.stats[key]['sigma']
             sigma_inv = np.linalg.inv(sigma)
+            r_bar = rbar_dict[key]
+            Cv = iscore_dict[key]
+            k = k_dict[key]
             # TODO: Review sigma_inv_det
             # sigma_inv_det = np.linalg.det(sigma_inv)
             # normal_factor = 1e-8
@@ -361,18 +392,10 @@ def consensus_jacobian(odometry_vector, ndt_cloud, test_pc):
             if q.ndim < 2:
                 q = np.atleast_2d(q)
             delq_delt = find_delqdelt_vect(odometry_vector, value)
+            constant_term = Cv*np.exp(-r_bar)*k
             first_term = np.matmul(q, np.matmul(sigma_inv, delq_delt.T))
-            exp_term = np.exp(-0.5 * np.diag(np.matmul(q, np.matmul(sigma_inv, q.T))))
             # g = (sigma_inv_det*normal_factor)*np.sum(np.diagonal(first_term, axis1=1, axis2=2)*exp_term, axis=1)
-            g = np.sum(np.diagonal(first_term, axis1=1, axis2=2) * exp_term, axis=1)
-            """
-            old_g = np.zeros(6)
-            for i in range(6):
-                old_g[i] = np.sum(np.diag(np.matmul(q, np.matmul(sigma_inv, delq_delt[:, :, i].T))) *
-                              np.exp(-0.5 * np.diag(np.matmul(q, np.matmul(sigma_inv, q.T)))))  # Check this out
-            # The following print statement gave all 0s, the vectorization works
-            error += np.max(np.abs(g - old_g))
-            """
+            g = np.sum(np.diagonal(first_term, axis1=1, axis2=2) * constant_term, axis=1)
             jacobian_val += g
     global jacob_neval
     jacob_neval += 1
@@ -391,18 +414,23 @@ def consensus_hessian(odometry_vector, ndt_cloud, test_pc):
     hessian_val = np.zeros([6, 6])
     transformed_pc = utils.transform_pc(odometry_vector, test_pc)
     points_in_voxels = ndt_cloud.bin_in_voxels(transformed_pc)
+    iscore_dict, rbar_dict, k_dict = ndt_cloud.optimization_integrity(transformed_pc)
     # t0 = time.time()
     # total_main_loop_time = 0
     # total_sub_loop_time = 0
     # main_loop_neval = 0
+    iscore_dict
     for key, value in points_in_voxels.items():
         # t1 = time.time()
-        if key in ndt_cloud.stats:
+        if key in ndt_cloud.stats and key in iscore_dict:
             if value.ndim == 1:
                 value = np.atleast_2d(value)
             mu = ndt_cloud.stats[key]['mu']
             sigma = ndt_cloud.stats[key]['sigma']
             sigma_inv = np.linalg.inv(sigma)
+            Cv = iscore_dict[key]
+            r_bar = rbar_dict[key]
+            k = k_dict[key]
             # TODO: Review sigma_inv_det
             # sigma_inv_det = np.linalg.det(sigma_inv)
             # normal_factor = 1e-8
@@ -412,64 +440,17 @@ def consensus_hessian(odometry_vector, ndt_cloud, test_pc):
             # t2 = time.time()
             # TODO: sigma_inv_det used here for hessian_vect
             # exp_term = (sigma_inv_det*normal_factor)*np.diag(np.exp(-0.5 * np.matmul(q, np.matmul(sigma_inv, q.T))))
-            exp_term = np.diag(np.exp(-0.5 * np.matmul(q, np.matmul(sigma_inv, q.T))))
+            constant_term1 = Cv*k*np.exp(-r_bar)
             temp1 = np.einsum('abi,jbc->aijc', delq_delt, np.matmul(sigma_inv, delq_delt.T))
-            term1 = np.sum(np.diagonal(temp1, axis1=0, axis2=3)*exp_term, axis=2)
-            term2 = np.sum(np.diagonal(np.matmul(q, np.matmul(sigma_inv, del2q_deltnm.T)), axis1=2, axis2=3)*exp_term,
-                           axis=2)
-            temp3 = np.diagonal(-np.matmul(q, np.matmul(sigma_inv, delq_delt.T)), axis1=1, axis2=2)*exp_term
-            temp4 = np.diagonal(np.matmul(q, np.matmul(sigma_inv, delq_delt.T)), axis1=1, axis2=2)
+            term1 = np.sum(np.diagonal(temp1, axis1=0, axis2=3), axis=2)
+            term2 = np.sum(np.diagonal(np.matmul(q, np.matmul(sigma_inv, del2q_deltnm.T)), axis1=2, axis2=3), axis=2)
+            temp3 = k*np.diagonal(np.matmul(q, np.matmul(sigma_inv, delq_delt.T)), axis1=1, axis2=2)
+            temp4 = (-np.exp(-r_bar)/(1 - np.exp(-r_bar)**2))*np.diagonal(np.matmul(q, np.matmul(sigma_inv, delq_delt.T)), axis1=1, axis2=2)
             term3 = np.matmul(temp3, temp4.T)
             # test should match temp_check_3
             # temp_term1 = np.diag(np.matmul(delq_delt, np.matmul(sigma_inv, delq_delt.T)))
-            temp_hess = term1 + term2 + term3
+            temp_hess = constant_term1*(term1 + term2) + term3
             hessian_val += temp_hess
-            """
-            # WHAT FOLLOWS IS THE UNVECTORIZED IMPLEMENTATION OF HESSIAN CALCULATION
-            temp_hess = np.zeros([6, 6])
-            temp_check_1 = np.zeros([6, 6])
-            temp_check_2 = np.zeros([6, 6])
-            temp_check_3 = np.zeros([6, 6])
-            for i in range(6):
-                for j in range(6):
-                    # Terms written out separately for increased readability in Hessian calculation
-                    term1 = np.diag(np.exp(-0.5 * np.matmul(q, np.matmul(sigma_inv, q.T))))
-                    term2 = np.diag(np.matmul(delq_delt[:, :, j], np.matmul(sigma_inv, delq_delt[:, :, i].T)))
-                    term3 = np.diag(np.matmul(q, np.matmul(sigma_inv, del2q_deltnm[:, :, i, j].T)))
-                    term4 = np.diag(-np.matmul(q, np.matmul(sigma_inv, delq_delt[:, :, i].T)))
-                    term5 = np.diag(np.matmul(q, np.matmul(sigma_inv, delq_delt[:, :, j].T)))
-                    temp_hess[i, j] = np.sum(term1*(term2 + term3 - term4*term5))
-                    temp_check_1[i, j] = np.sum(term2)
-                    temp_check_2[i, j] = np.sum(term3)
-                    temp_check_3[i, j] = np.sum(term4*term5) # MATCHES TEST
-            """
-            """
-            exp_term = np.diag(np.exp(-0.5 * np.matmul(q, np.matmul(sigma_inv, q.T))))
-            test1 = np.matmul(sigma_inv, delq_delt.T)
-            test2 = np.einsum('abi,jbc->aijc', delq_delt, test1)
-            test3 = np.diagonal(test2, axis1=0, axis2=3)
-            test4 = np.sum(test3*exp_term, axis=2)
-            testing1 = np.matmul(sigma_inv, del2q_deltnm.T)
-            testing2 = np.matmul(q, testing1)
-            testing3 = np.diagonal(testing2, axis1=2, axis2=3)
-            testing3_alter = np.diagonal(testing2, axis1=3, axis2=2)
-            testing4 = np.sum(testing3*exp_term, axis=2)
-            temp_term3 = np.diagonal(-np.matmul(q, np.matmul(sigma_inv, delq_delt.T)), axis1=1, axis2=2)*exp_term 
-            temp_term4 = np.diagonal(np.matmul(q, np.matmul(sigma_inv, delq_delt.T)), axis1=1, axis2=2) 
-            test = np.matmul(temp_term3, temp_term4.T)
-            # test should match temp_check_3
-            # temp_term1 = np.diag(np.matmul(delq_delt, np.matmul(sigma_inv, delq_delt.T)))
-            temp_hess = testing4.T + test4 - test
-            hessian_val += temp_hess
-            total_sub_loop_time += time.time() - t2
-        main_loop_neval += 1
-        total_main_loop_time += time.time() - t1
-    print('The average main loop run time was ', total_main_loop_time/main_loop_neval)
-    print('The total main loop run time was ', total_main_loop_time)
-    print('The number of sub loop runs is', main_loop_neval*36)
-    print('The total sub loop run time was ', total_sub_loop_time)
-    print('The total Hessian run time was ', time.time() - t0)
-    """
     global hess_neval
     hess_neval += 1
     return hessian_val

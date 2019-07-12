@@ -324,6 +324,37 @@ class NDTCloud:
         # The loop index is added to ensure that only points that have a corresponding voxel are used for IDOP
         return Im, iscore_sum
 
+    def optimization_integrity(self, points):
+        """
+        Given a set of points and the underlying NDT Cloud, find the integrity of each voxel and the combined navigation
+        solution
+        :param points: Transformed points for which the integrity is required
+        :return: Im: The integrity of the navigation solution obtained using the transformed points given
+        :return: iscore: Voxel integrity score corresponding to the voxel center
+        """
+        test_xyz = points[:, :3]
+        binned_points = self.bin_in_voxels(test_xyz)
+        N = len(self.stats)
+        iscore_dict = {}
+        rbar_dict = {}
+        k_dict = {}
+        loop_index = 0
+        mu_points = np.zeros([N, 3])
+        for key, val in self.stats.items():
+            if key in binned_points:
+                mu_points[loop_index, :] = val['mu']
+                iscore_dict[key], rbar_dict[key], k_dict[key] = integrity.voxel_int_opt(val, binned_points[key])
+                self.stats[key]['integrity'] = iscore_dict[loop_index]
+                if np.isnan(iscore_dict[loop_index]):
+                    print('NaN detected!')
+                loop_index += 1
+            else:
+                self.stats[key]['integrity'] = 0
+        # avg_iscore = np.mean(iscore)
+        iscore_dict[iscore_dict == 0] = 1e-9
+        # The loop index is added to ensure that only points that have a corresponding voxel are used for IDOP
+        return iscore_dict, rbar_dict, k_dict
+
     def filter_voxels_integrity(self, integrity_limit=0.7):
         """
         Function to trim an ndt_cloud based on the integrity values of its voxels
