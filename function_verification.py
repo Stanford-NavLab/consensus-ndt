@@ -8,6 +8,10 @@ import numpy as np
 from utils import combine_odometry
 from utils import odometry_difference
 import utils
+import mapping
+import data_utils
+import ndt
+import diagnostics
 
 
 def verify_combine_odometry():
@@ -58,9 +62,45 @@ def verify_odometry_difference():
     print('THIS WORKS TOO!!!!!')
     return None
 
+########################################################################################################################
+# Testing functions in mapping.py #
+########################################################################################################################
 
-verify_combine_odometry()
-verify_odometry_difference()
+
+def test_map_stitch():
+    kitti_pcs = data_utils.load_kitti_pcs(0, 5, pc_diff=5)
+    kitti_truth = data_utils.kitti_sequence_poses(0, 5, diff=5)
+    inv_kitti_truth = utils.invert_odom_transfer(kitti_truth[1, :])
+
+    diagnostics.plot_consec_pc(kitti_pcs[0], kitti_pcs[1])
+    inv_pc = utils.transform_pc(inv_kitti_truth, kitti_pcs[1])
+    trans_pc = utils.transform_pc(kitti_truth[1, :], kitti_pcs[1])
+    diagnostics.plot_consec_pc(kitti_pcs[0], inv_pc)
+    diagnostics.plot_consec_pc(kitti_pcs[0], trans_pc)
+
+    init_map_ndt = ndt.ndt_approx(kitti_pcs[0], horiz_grid_size=1.0, vert_grid_size=1.0)
+    ndt.display_ndt_cloud(init_map_ndt)
+    final_map_ndt = mapping.combine_pc_for_map([kitti_pcs[1]], inv_kitti_truth, init_map_ndt)
+    ndt.display_ndt_cloud(final_map_ndt)
+    print('It works!')
+    return None
+
+
+def pc_sim_test():
+    kitti_pcs = data_utils.load_kitti_pcs(0, 70, pc_diff=70)
+    kitti_truth = data_utils.kitti_sequence_poses(0, 70, diff=70)
+    inv_kitti_truth = utils.invert_odom_transfer(kitti_truth[1, :])
+    inv_pc = utils.transform_pc(inv_kitti_truth, kitti_pcs[1])
+    init_map_ndt = ndt.ndt_approx(kitti_pcs[0], horiz_grid_size=1.0, vert_grid_size=1.0)
+    diagnostics.plot_consec_pc(kitti_pcs[0], inv_pc)
+    print(mapping.pc_similarity(init_map_ndt, inv_pc))
+    return None
+
+
+#test_map_stitch()
+pc_sim_test()
+#verify_combine_odometry()
+#verify_odometry_difference()
 
 """
 def verify_rot_matrix():
