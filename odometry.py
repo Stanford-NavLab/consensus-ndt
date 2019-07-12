@@ -324,14 +324,14 @@ def consensus_odometry(ndt_cloud, test_pc):
     # odometry_bounds = Bounds([-xlim, -ylim, -zlim, -180.0, -90.0, -180.0], [xlim, ylim, zlim, 180.0, 90.0, 180.0])
     # TODO: Any way to implement bounds on the final solution?
     res1 = minimize(consensus_objective, initial_odom, method='Newton-CG', jac=consensus_jacobian,
-                   hess=consensus_hessian, args=(ndt_cloud, test_xyz), options={'disp': True, 'maxiter': 15})
+                    args=(ndt_cloud, test_xyz), options={'disp': True, 'maxiter': 15})
     # res = minimize(objective, initial_odom, method='BFGS', args=(ndt_cloud, test_xyz), options={'disp' : True})
     temp_odom_vector = res1.x
     transformed_xyz = utils.transform_pc(temp_odom_vector, test_xyz)
     ndt_cloud.find_integrity(transformed_xyz)
     ndt_cloud.filter_voxels_integrity(integrity_limit=0.7)
     res2 = minimize(consensus_objective, temp_odom_vector, method='Newton-CG', jac=consensus_jacobian,
-                   hess=consensus_hessian, args=(ndt_cloud, test_xyz), options={'disp': True, 'maxiter': 10})
+                    args=(ndt_cloud, test_xyz), options={'disp': True, 'maxiter': 10})
     # Return odometry in navigational frame of reference
     odom_vector = res2.x
     return odom_vector
@@ -383,6 +383,10 @@ def consensus_jacobian(odometry_vector, ndt_cloud, test_pc):
             sigma = ndt_cloud.stats[key]['sigma']
             sigma_inv = np.linalg.inv(sigma)
             r_bar = rbar_dict[key]
+            if r_bar > 6:
+                r_bar = 6
+            elif r_bar < -6:
+                r_bar = -6
             Cv = iscore_dict[key]
             k = k_dict[key]
             # TODO: Review sigma_inv_det
@@ -419,7 +423,6 @@ def consensus_hessian(odometry_vector, ndt_cloud, test_pc):
     # total_main_loop_time = 0
     # total_sub_loop_time = 0
     # main_loop_neval = 0
-    iscore_dict
     for key, value in points_in_voxels.items():
         # t1 = time.time()
         if key in ndt_cloud.stats and key in iscore_dict:
@@ -430,6 +433,10 @@ def consensus_hessian(odometry_vector, ndt_cloud, test_pc):
             sigma_inv = np.linalg.inv(sigma)
             Cv = iscore_dict[key]
             r_bar = rbar_dict[key]
+            if r_bar > 6:
+                r_bar = 6
+            elif r_bar < -6:
+                r_bar = -6
             k = k_dict[key]
             # TODO: Review sigma_inv_det
             # sigma_inv_det = np.linalg.det(sigma_inv)
