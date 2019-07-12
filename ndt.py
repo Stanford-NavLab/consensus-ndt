@@ -344,12 +344,9 @@ class NDTCloud:
             if key in binned_points:
                 mu_points[loop_index, :] = val['mu']
                 iscore_dict[key], rbar_dict[key], k_dict[key] = integrity.voxel_int_opt(val, binned_points[key])
-                self.stats[key]['integrity'] = iscore_dict[loop_index]
                 if np.isnan(iscore_dict[loop_index]):
                     print('NaN detected!')
                 loop_index += 1
-            else:
-                self.stats[key]['integrity'] = 0
         # avg_iscore = np.mean(iscore)
         iscore_dict[iscore_dict == 0] = 1e-9
         # The loop index is added to ensure that only points that have a corresponding voxel are used for IDOP
