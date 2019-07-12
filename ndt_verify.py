@@ -9,6 +9,8 @@ Date Modified: 16th June, 2019
 import numpy as np
 import pykitti
 import pptk
+
+import data_utils
 import ndt
 import odometry
 import mapping
@@ -28,7 +30,7 @@ print('Extracting map odometry')
 
 num_frames = 40
 
-sequence_odometry = utils.kitti_sequence_poses(data, num_frames=40)
+sequence_odometry = data_utils.kitti_sequence_poses(data, num_frames=40)
 
 ndt_odom_save = np.zeros([3, 6])
 icp_odom_save = np.zeros([3, 6])
