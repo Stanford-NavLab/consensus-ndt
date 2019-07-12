@@ -8,12 +8,14 @@ import numpy as np
 import pykitti
 import pptk
 import transforms3d
+
+import data_utils
 import integrity
 import time
 from matplotlib import pyplot as plt
 from scipy.stats import chi2
 import ndt
-import utils
+import data_utils
 
 
 def sigmoid(x):
@@ -243,7 +245,7 @@ def vox_con():
 
 def test_mapping_func():
     data = extract_data()
-    sequence_ground_truth = utils.kitti_sequence_poses(data)
+    sequence_ground_truth = data_utils.kitti_sequence_poses(data)
     mapping_ground_truth = np.zeros_like(sequence_ground_truth)
     N = sequence_ground_truth.shape[0]
     for i in range(N):
@@ -298,9 +300,26 @@ def total_metric_test():
     print('Second H eigenvectors', v_2)
     return None
 
-#vox_con()
-#paper_total_con()
-total_metric_test()
-#transforms_test()
-#ndt_test()
-#integrity_test()
+
+def find_pc_DOP(pointcloud):
+    pc_DOP = integrity.calculate_dop(pointcloud)
+    print(pc_DOP)
+    return pc_DOP
+
+
+def test_data_loader():
+    uiuc_pcs = data_utils.load_uiuc_pcs(0, 10, 1)
+    #for pc in uiuc_pcs:
+        #print(np.shape(pc))
+    kitti_data = data_utils.load_kitti_pcs(0, 10, 10)
+    for pc in kitti_data:
+        print(np.shape(pc))
+    return 0
+
+# vox_con()
+# paper_total_con()
+# total_metric_test()
+# transforms_test()
+# ndt_test()
+# integrity_test()
+test_data_loader()
