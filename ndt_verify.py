@@ -30,7 +30,7 @@ print('Extracting map odometry')
 
 num_frames = 40
 
-sequence_odometry = data_utils.kitti_sequence_poses(data, num_frames=40)
+sequence_odometry = data_utils.kitti_sequence_poses(0, 40, diff=1, seq_input_mode='server')
 
 ndt_odom_save = np.zeros([3, 6])
 icp_odom_save = np.zeros([3, 6])

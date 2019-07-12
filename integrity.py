@@ -15,7 +15,7 @@ def sigmoid(x):
     return s
 
 
-def calculate_dop(points, iscore=0):
+def calculate_dop(points, iscore=np.array([0])):
     """
     Function to calculate the DOP of a group of points, weighted by their integrity score
     :param points: The points for which the IDOP (Integrity DOP) is to be calculated
@@ -24,7 +24,7 @@ def calculate_dop(points, iscore=0):
     :return DOP: The traditional DOP of the points (for reference or normalization)
     """
     N = points.shape[0]
-    if iscore == 0:
+    if iscore.size == 1:
         iscore = np.ones(N)
     row_norm = np.linalg.norm(points, axis=1)
     coord_norm = np.broadcast_to(np.atleast_2d(row_norm).T, [N, 3])
@@ -44,7 +44,7 @@ def solution_score(points, point_iscore, test_pc):
     :return: sol_iscore: The final solution's integrity score
     """
     IDOP, iscore_sum = calculate_dop(points, point_iscore)
-    DOP, _ = calculate_dop(test_pc)
+    DOP, _ = calculate_dop(points)
     sol_iscore = DOP/IDOP
     # print(np.mean(point_iscore))
     return sol_iscore, iscore_sum

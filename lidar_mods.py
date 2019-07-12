@@ -9,7 +9,7 @@ import numpy as np
 
 
 def modify_ranging(pc, delta_r):
-    r = np.linalg.norm(pc, axis=1)
+    r = np.atleast_2d(np.linalg.norm(pc, axis=1)).T
     delta_coord = pc/r*delta_r
     mod_pc = pc + delta_coord
     return mod_pc

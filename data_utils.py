@@ -43,7 +43,7 @@ def load_kitti_data(start, end, diff=1, mode='laptop'):
         date = '2011_09_26'
         drive = '0005'
     elif mode == 'server':
-        basedir = '/home/kanhere2/ion-gnss-19/bleagh'
+        basedir = '/home/kanhere2/ion-gnss-19/test_dataset/'
         date = '2011_09_26'
         drive = '0005'
     else:
