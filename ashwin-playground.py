@@ -123,6 +123,62 @@ def integrity_test():
     return None
 
 
+def calculate_2d_dop(points, iscore):
+    N = points.shape[0]
+    row_norm = np.linalg.norm(points, axis=1)
+    coord_norm = np.broadcast_to(np.atleast_2d(row_norm).T, [N, 2])
+    unit_vect = points/coord_norm
+    G_norm = np.hstack((unit_vect, np.ones([N, 1])))
+    G_dash = np.atleast_2d(iscore).T*G_norm
+    H_dash = np.linalg.inv(np.matmul(G_dash.T, G_dash))
+    IDOP = np.sqrt(np.sum(np.diag(H_dash)))
+    H = np.linalg.inv(np.matmul(G_norm.T, G_norm))
+    DOP = np.sqrt(np.sum(np.diag(H)))
+    return IDOP, DOP
+
+
+def new_integrity_example():
+    # Clustered arrangement
+    N = 100
+    theta_low = np.random.uniform(0, np.pi, N)
+    theta_high = np.random.uniform(np.pi, 2*np.pi, N)
+    low_coordinates = np.hstack((np.reshape(np.cos(theta_low), [-1, 1]), np.reshape(np.sin(theta_low), [-1, 1])))
+    high_coordinates = np.hstack((np.reshape(np.cos(theta_high), [-1, 1]), np.reshape(np.sin(theta_high), [-1, 1])))
+    # plt.scatter(low_coordinates[:, 0], low_coordinates[:, 1], color='blue')
+    #plt.scatter(high_coordinates[:, 0], high_coordinates[:, 1], color='red')
+    u =np.zeros(N)
+    v = np.zeros(N)
+    plt.quiver(u, v, low_coordinates[:, 0], low_coordinates[:, 1], color='red', units='xy', scale=1.0)
+    plt.quiver(u, v, high_coordinates[:, 0], high_coordinates[:, 1], color='blue', units='xy', scale=1.0)
+    plt.axis('equal')
+    plt.xlim([-1.5, 1.5])
+    plt.ylim([-1.5, 1.5])
+    plt.show()
+    iscore = np.hstack((0.05*np.ones(N), 0.95*np.ones(N)))
+    points1 = np.vstack((low_coordinates, high_coordinates))
+    IDOP1, DOP = calculate_2d_dop(points1, iscore)
+    print(IDOP1)
+    print(DOP)
+    print(DOP/IDOP1)
+    # Non clustered arrangement
+    theta_low = np.random.uniform(0, 2*np.pi, N)
+    theta_high = np.random.uniform(0, 2*np.pi, N)
+    low_coordinates = np.hstack((np.reshape(np.cos(theta_low), [-1, 1]), np.reshape(np.sin(theta_low), [-1, 1])))
+    high_coordinates = np.hstack((np.reshape(np.cos(theta_high), [-1, 1]), np.reshape(np.sin(theta_high), [-1, 1])))
+    plt.quiver(u, v, low_coordinates[:, 0], low_coordinates[:, 1], color='red', units='xy', scale=1.0)
+    plt.quiver(u, v, high_coordinates[:, 0], high_coordinates[:, 1], color='blue', units='xy', scale=1.0)
+    plt.axis('equal')
+    plt.xlim([-1.5, 1.5])
+    plt.ylim([-1.5, 1.5])
+    plt.show()
+    points2 = np.vstack((low_coordinates, high_coordinates))
+    IDOP2, DOP = calculate_2d_dop(points2, iscore)
+    print(IDOP2)
+    print(DOP)
+    print(DOP/IDOP2)
+    return None
+
+
 def transforms_test():
     angles = [0, np.pi/4, np.pi/3]
     for i in range(3):
@@ -214,6 +270,66 @@ def voxel_integrity(mu, sigma, points):
     if np.isnan(Iv):
         print('Yet another Nan!')
     return Iv
+
+
+def paper_vox_con_2():
+    case = 3
+    N_plot = 3
+    plot_cov = 0.01
+    points = np.array([[0.3, 0.3],
+                       [0.3, 0.35],
+                       [0.5, 0.45],
+                       [0.7, 0.66],
+                       [0.7, 0.74]])
+    mu = np.mean(points, axis=0)
+    cov = np.cov(points.T)
+    print(mu)
+    print(cov)
+    plot_points = np.random.multivariate_normal(mu, cov, 1000)
+    test_match = np.array([[0.4, 0.4],
+                           [0.5, 0.5],
+                           [0.55, 0.55],
+                           [0.6, 0.6],
+                           [0.65, 0.65]])
+    test_outliers = np.array([[0.2, 0.3],
+                              [0.5, 0.7],
+                              [0.55, 0.15],
+                              [0.7, 0.6],
+                              [0.8, 0.85]])
+    test_mismatch = np.array([[0.2, 0.4],
+                              [0.3, 0.55],
+                              [0.55, 0.75],
+                              [0.6, 0.76],
+                              [0.8, 0.94]])
+    test_occlusion = np.array([[0.9, 0.8],
+                               [0.9, 0.75],
+                               [0.8, 0.7],
+                               [0.8, 0.9],
+                               [0.8, 0.65]])
+    if case == 0:
+        test_points = test_match
+    elif case == 1:
+        test_points = test_outliers
+    elif case == 2:
+        test_points = test_mismatch
+    elif case == 3:
+        test_points = test_occlusion
+    N_match = np.shape(test_points)[0]
+    plot_test = np.reshape(test_points[0, :], [1, -1])
+    for test_num in range(N_match):
+        temp_x = np.random.normal(test_points[test_num, 0], plot_cov, N_plot)
+        temp_y = np.random.normal(test_points[test_num, 1], plot_cov, N_plot)
+        temp_pts = np.hstack((np.reshape(temp_x, [-1, 1]), np.reshape(temp_y, [-1, 1])))
+        plot_test = np.vstack((plot_test, temp_pts))
+    fig = plt.figure()
+    plt.scatter(plot_points[:, 0], plot_points[:, 1], s=1, c='b')
+    plt.scatter(plot_test[:, 0], plot_test[:, 1], s=36, c='r')
+    plt.xlim([0, 1])
+    plt.ylim([0, 1])
+    print(voxel_integrity(mu, cov, plot_test))
+    plt.show()
+
+    return None
 
 
 def vox_con():
@@ -316,10 +432,45 @@ def test_data_loader():
         print(np.shape(pc))
     return 0
 
+
+def c_v_presentation_plot():
+    N = 6
+    high = 13.816
+    low = 0.01
+    r = np.linspace(0, 20, 100)
+    bar_r = 3 - 6.*((r - low)/(high - low))
+    C_v = 1 / (1 + np.exp(-bar_r))
+    good_voxels = 5
+    bad_voxels = 8.87
+    plt.plot(r, C_v)
+    plt.xlim([0, 20])
+    plt.ylim([0, 1])
+    plt.show()
+    return None
+
+
+def ndt_resolution():
+    kitti_data = data_utils.load_uiuc_pcs(0, 10, 1)
+    pc = kitti_data[0]
+    view_pc = pptk.viewer(pc)
+    view_pc.set(lookat=[0.0, 0.0, 0.0])
+    ndt_1 = ndt.ndt_approx(pc, horiz_grid_size=2.0, vert_grid_size=2.0)
+    ndt.display_ndt_cloud(ndt_1, point_density=0.8)
+    ndt_2 = ndt.ndt_approx(pc, horiz_grid_size=1.0, vert_grid_size=1.0)
+    ndt.display_ndt_cloud(ndt_2, point_density=0.4)
+    ndt_3 = ndt.ndt_approx(pc)
+    ndt.display_ndt_cloud(ndt_3, point_density=0.2)
+    return None
+
+
 # vox_con()
 # paper_total_con()
 # total_metric_test()
 # transforms_test()
 # ndt_test()
 # integrity_test()
-test_data_loader()
+# test_data_loader()
+# new_integrity_example()
+# paper_vox_con_2()
+# c_v_presentation_plot()
+ndt_resolution()

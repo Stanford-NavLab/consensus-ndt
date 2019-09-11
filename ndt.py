@@ -206,6 +206,7 @@ class NDTCloud:
             mu = self.stats[key]['mu']
             measure_num = self.stats[key]['no_points']
             num_pts = np.int(3 * measure_num / self.max_no_points * plot_density * base_num_pts )
+            #num_pts = base_num_pts
             if num_pts < 2:
                 num_pts = 2
             if 'integrity' in self.stats[key]:
@@ -406,7 +407,7 @@ def display_ndt_cloud(ndt_cloud, point_density = 0.1):
     :param ndt_cloud: NDT point cloud approximation
     :return: None
     """
-    points_to_plot, pt_integrity = ndt_cloud.display(plot_density= point_density)
+    points_to_plot, pt_integrity = ndt_cloud.display(plot_density=point_density)
     ndt_viewer = pptk.viewer(points_to_plot, pt_integrity)
     ndt_viewer.color_map('hot')
     ndt_viewer.set(lookat=[0.0, 0.0, 0.0])
