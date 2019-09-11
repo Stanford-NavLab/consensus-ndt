@@ -58,10 +58,10 @@ def consensus_optimization():
         curr_pc = uiuc_pcs[idx]
         trans_pc = utils.transform_pc(cand_transform, curr_pc)
         trans_ndt = ndt.ndt_approx(trans_pc)
-        print('Calculating traditional odometry:', idx)
-        curr_ndt_odom_inv = odometry.odometry(trans_ndt, curr_pc)
         print('Calculating consensus odometry:', idx)
         curr_con_odom_inv = odometry.consensus_odometry(trans_ndt, curr_pc)
+        print('Calculating traditional odometry:', idx)
+        curr_ndt_odom_inv = odometry.odometry(trans_ndt, curr_pc)
         curr_icp_odom = diagnostics.ind_lidar_odom(curr_pc, trans_pc)
         print('NDT ODOMETRY: ', curr_ndt_odom_inv)
         print('ICP ODOMETRY: ', curr_icp_odom)
