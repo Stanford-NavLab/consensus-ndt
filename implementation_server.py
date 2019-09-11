@@ -233,6 +233,9 @@ def presentation_run():
         inv_odom = utils.invert_odom_transfer(new_pose)
         trans_pc = utils.transform_pc(inv_odom, test_pc)
         Cm[idx] = prev_ndt.find_integrity(trans_pc)
+    plt.figure()
+    plt.plot(delta_poses, Cm)
+    plt.show()
     return None
 
 
