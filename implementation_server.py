@@ -46,6 +46,31 @@ def fault_consensus():
     return None
 
 
+def plot_cv():
+    kitti_pcs = data_utils.load_kitti_pcs(0, 60, pc_mode='laptop')
+    kitti_ground_truth = data_utils.kitti_sequence_poses(0, 60, seq_input_mode='laptop')
+    pc_index = np.array([0])
+    idx = pc_index[0]
+    prev_pc = kitti_pcs[idx]
+    curr_pc = kitti_pcs[idx + 1]
+    print('NDT Approximation')
+    prev_ndt = ndt.ndt_approx(prev_pc, horiz_grid_size=1.0, vert_grid_size=1.0)
+    inv_odom = utils.invert_odom_transfer(kitti_ground_truth[idx + 1])
+    trans_pc = utils.transform_pc(inv_odom, curr_pc)
+    print('Displaying original point cloud')
+    view_new = pptk.viewer(prev_pc)
+    view_new.set(lookat=[0.0, 0.0, 0.0])
+    print('Finding integrity')
+    prev_ndt.find_integrity(trans_pc)
+    print('Displaying integrity filtered NDT')
+    ndt.display_ndt_cloud(prev_ndt, point_density=2)
+    print('Plotting consecutive point clouds')
+    diagnostics.plot_consec_pc(prev_pc, trans_pc)
+
+
+    return None
+
+
 def consensus_optimization():
     uiuc_pcs = data_utils.load_uiuc_pcs(500, 550, diff=1, mode='server')
     ndt_odom = np.zeros([50, 6])
@@ -185,6 +210,32 @@ def old_run():
     return None
 
 
+def presentation_run():
+    # Extract data for run
+    kitti_pcs = data_utils.load_kitti_pcs(0, 60, pc_mode='server')
+    # Generating plots for localization consensus metric
+    prev_pc = kitti_pcs[0]
+    test_pc = kitti_pcs[1]
+    num_test = 100
+    test_axis = 0
+    Cm = np.zeros(num_test)
+    delta_poses = np.linspace(0, 5, num_test)
+    ground_truths = data_utils.kitti_sequence_poses(0, 60, seq_input_mode='server')
+    true_pose = ground_truths[1]
+    inv_truth = utils.invert_odom_transfer(true_pose)
+    for idx in range(num_test):
+        prev_ndt = ndt.ndt_approx(prev_pc, horiz_grid_size=0.5, vert_grid_size=0.5)
+        true_trans_pc = utils.transform_pc(inv_truth, test_pc)
+        prev_ndt.find_integrity(true_trans_pc)
+        prev_ndt.filter_voxels_integrity(integrity_limit=0.7)
+        new_pose = true_pose
+        new_pose[test_axis] += delta_poses[idx]
+        inv_odom = utils.invert_odom_transfer(new_pose)
+        trans_pc = utils.transform_pc(inv_odom, test_pc)
+        Cm[idx] = prev_ndt.find_integrity(trans_pc)
+    return None
+
 
 #fault_consensus()
-consensus_optimization()
+#consensus_optimization()
+presentation_run()
