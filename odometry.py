@@ -531,6 +531,8 @@ def find_del2q_deltnm_vect(odometry_vector, points):
     del2q_deltnm = np.zeros([N, 3, 6, 6])
     delta = 1.5e-08
     original_delq_delt = find_delqdelt_vect(odometry_vector, points)
+    # TODO: Vectorize computation of Hessian for different odometry vectors to happen at once
+    # TODO: Further rigorous checking of the Hessian results (there were some singularities encountered during tests)
     for i in range(6):
         odometry_new = np.zeros(6)
         odometry_new[i] = odometry_new[i] + delta

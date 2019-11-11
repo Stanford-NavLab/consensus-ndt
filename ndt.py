@@ -1,6 +1,7 @@
 """
 ndt.py
-File containing functions for NDT-based point cloud function approximation functions
+File containing class definitions of NDT approximation for Consensus NDT SLAM
+Also contains helper NDT functions
 Author: Ashwin Kanhere
 Date created: 15th April 2019
 Last modified: 13th June 2019
@@ -21,6 +22,8 @@ import time
 """
 Importing base libraries
 """
+# TODO: Use inheritance to define other two NDT classes. Only difference is in the defintion of the grid during
+#  initialization which can be overwritten
 
 
 class NDTCloud:
@@ -46,6 +49,7 @@ class NDTCloud:
         self.horiz_grid_size = np.float(input_horiz_grid_size)
         self.vert_grid_size = np.float(input_vert_grid_size)
         self.first_center = np.empty([8, 3])
+        # TODO: Change grid center definition for non-overlapping cases
         for i in range(8):
             offset = np.array([np.mod(i, 2), np.mod(np.int(i/2), 2), np.int(i/4)])
             first_center_x = np.mod(2*xlim/self.horiz_grid_size + offset[0] + 1, 2)*self.horiz_grid_size/2.0
@@ -115,6 +119,7 @@ class NDTCloud:
         points_repeated = np.tile(ref_points, (8, 1))
         N = ref_points.shape[0]
         voxel_centers = np.zeros_like(points_repeated)
+        # TODO: Change/update for the case with no overlap
         for i in range(8):
             pre_voxel_number = (ref_points + self.first_center[i, :]) / grid_size
             pre_voxel_center = np.round(pre_voxel_number).astype(int) * grid_size
@@ -138,6 +143,7 @@ class NDTCloud:
         """
         points_repeated, voxel_centers = self.find_voxel_center(points_to_bin)
         points_in_voxels = {}
+        # TODO: Delete old function after verification of new everywhere
         for i in range(points_repeated.shape[0]):
             voxel_key = tuple(voxel_centers[i, :])
             if voxel_key in points_in_voxels:
@@ -389,6 +395,7 @@ def ndt_approx(ref_pointcloud, horiz_grid_size=0.5, vert_grid_size=0.5):
     ... vertically with different concentrations, hence the different sizes. Same as horiz_grid_size by default
     :return: ndt_cloud: NDT approximated cloud for the given point cloud and grid size
     """
+    # TODO: Add option for type of NDTCloud to be defined: naive, overlapping or interpolated
     if ref_pointcloud.shape[1] == 4:
         ref_pointcloud = ref_pointcloud[:, :3]
     # Extract the size of the grid
