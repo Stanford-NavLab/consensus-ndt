@@ -43,6 +43,8 @@ def solution_score(points, point_iscore, test_pc):
     :param point_iscore: The integrity score corresponding to these points
     :return: sol_iscore: The final solution's integrity score
     """
+    # TODO: Investigate a method of better estimating geometric coverage of a group of point clouds. Exact DOP might
+    #  not work even when the coverage is full in reality (due to the differences between the points themselves)
     IDOP, iscore_sum = calculate_dop(points, point_iscore)
     DOP, _ = calculate_dop(points)
     sol_iscore = DOP/IDOP
@@ -82,7 +84,7 @@ def voxel_integrity(voxel_dict, points):
 
 def voxel_int_opt(voxel_dict, points):
     """
-    Function to calculate an integrity score for the points distributed inside a voxel
+    Function to calculate an integrity score for the points distributed inside a voxel for optimization
     :param voxel_dict: Dictionary containing the mean and covariance for the voxel in question
     :param points: Points that lie inside the voxel in question
     :return: r: The integrity score for that voxel

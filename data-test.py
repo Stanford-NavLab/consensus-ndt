@@ -2,6 +2,8 @@ import numpy as np
 import pykitti
 import pptk
 
+# TODO: Move this code to an entirely new file containing only functions to test the code
+
 basedir = 'D:\\Users\\kanhe\\Box Sync\\RA Work\\ION GNSS 19\\Implementation\\Dataset'
 date = '2011_09_26'
 drive = '0005'

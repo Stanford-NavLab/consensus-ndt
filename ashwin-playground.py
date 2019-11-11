@@ -121,6 +121,7 @@ def integrity_test():
     timing = (time.time() - t0)/1000
     print(timing)
     return None
+# TODO: Move all plot and example generating code to its own file
 
 
 def calculate_2d_dop(points, iscore):

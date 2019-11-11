@@ -18,6 +18,8 @@ import utils
 import diagnostics
 import time
 
+# TODO: Move to function testing file
+
 basedir = '/home/kanhere2/ion-gnss-19/test_dataset'
 date = '2011_09_26'
 drive = '0005'

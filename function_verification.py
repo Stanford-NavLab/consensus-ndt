@@ -12,6 +12,7 @@ import mapping
 import data_utils
 import ndt
 import diagnostics
+# TODO: Remove deprecated functions and unify with general testing file
 
 
 def verify_combine_odometry():

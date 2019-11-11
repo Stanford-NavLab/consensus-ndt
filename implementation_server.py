@@ -16,6 +16,7 @@ from matplotlib import pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import data_utils
 import lidar_mods
+# TODO: Change this file to be implementation for both server and laptop versions
 
 
 def fault_consensus():
@@ -66,8 +67,6 @@ def plot_cv():
     ndt.display_ndt_cloud(prev_ndt, point_density=2)
     print('Plotting consecutive point clouds')
     diagnostics.plot_consec_pc(prev_pc, trans_pc)
-
-
     return None
 
 
