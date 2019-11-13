@@ -126,23 +126,6 @@ class NDTCloudBase:
                 self.first_center[i, :], (N, 3)))
         return points_repeated, voxel_centers
 
-    def old_bin_in_voxels(self, points_to_bin):
-        """
-        Function to bin given points into voxels in a dictionary approach
-        :param points_to_bin: The points that are to be binned into the voxel clusters indexed by the voxel center tuple
-        :return: points_in_voxel: A dictionary indexed by the tuple of the center of the bin
-        """
-        points_repeated, voxel_centers = self.find_voxel_center(points_to_bin)
-        points_in_voxels = {}
-        # TODO: Delete old function after verification of new everywhere
-        for i in range(points_repeated.shape[0]):
-            voxel_key = tuple(voxel_centers[i, :])
-            if voxel_key in points_in_voxels:
-                points_in_voxels[voxel_key] = np.vstack((points_in_voxels[voxel_key], points_repeated[i, :]))
-            else:
-                points_in_voxels[voxel_key] = points_repeated[i, :]
-        return points_in_voxels
-
     def bin_in_voxels(self, points_to_bin):
         """
         Function to bin given points into voxels in a dictionary approach
@@ -152,18 +135,9 @@ class NDTCloudBase:
         points_repeated, voxel_centers = self.find_voxel_center(points_to_bin)
         dummy = numpy_indexed.group_by(voxel_centers, points_repeated)
         points_in_voxels = {}
-        # TODO: Verify the results from the modified code that follows
         for i in range(np.shape(dummy[0])[0]):
             voxel_key = tuple(dummy[0][i])
             points_in_voxels[voxel_key] = dummy[1][i]
-        """
-        for i in range(points_repeated.shape[0]):
-            voxel_key = tuple(voxel_centers[i, :])
-            if voxel_key in points_in_voxels:
-                points_in_voxels[voxel_key] = np.vstack((points_in_voxels[voxel_key], points_repeated[i, :]))
-            else:
-                points_in_voxels[voxel_key] = points_repeated[i, :]
-        """
         return points_in_voxels
 
     def find_likelihood(self, transformed_pc):
