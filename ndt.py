@@ -17,16 +17,14 @@ import diagnostics
 import integrity
 import numpy_indexed
 import time
-
+from scipy.interpolate import RegularGridInterpolator
 
 """
 Importing base libraries
 """
-# TODO: Use inheritance to define other two NDT classes. Only difference is in the defintion of the grid during
-#  initialization which can be overwritten
 
 
-class NDTCloud:
+class NDTCloudBase:
     """
     A class to store the sparse grid center points, means and covariances for grid points that are full.
     This class will be the de facto default for working with NDT point clouds
@@ -48,15 +46,6 @@ class NDTCloud:
         # When initializing the cloud, the origin is either going to be a grid center or not.
         self.horiz_grid_size = np.float(input_horiz_grid_size)
         self.vert_grid_size = np.float(input_vert_grid_size)
-        self.first_center = np.empty([8, 3])
-        # TODO: Change grid center definition for non-overlapping cases
-        for i in range(8):
-            offset = np.array([np.mod(i, 2), np.mod(np.int(i/2), 2), np.int(i/4)])
-            first_center_x = np.mod(2*xlim/self.horiz_grid_size + offset[0] + 1, 2)*self.horiz_grid_size/2.0
-            first_center_y = np.mod(2*ylim/self.horiz_grid_size + offset[1] + 1, 2)*self.horiz_grid_size/2.0
-            first_center_z = np.mod(2*zlim/self.vert_grid_size + offset[2] + 1, 2) *self.vert_grid_size/2.0
-            self.first_center[i, :] = np.array([first_center_x, first_center_y, first_center_z])
-            # xlim = np.ceil(np.max(np.absolute(ref_pointcloud[:, 0]))) + 2*horiz_grid_size + 0.5*horiz_grid_size*offset_axis[0]
         # Create NDT map for reference grid
         # Initialize empty lists to store means and covariance matrices
         self.stats = {}  # Create an empty dictionary for mu and sigma corresponding to each voxel
@@ -67,6 +56,7 @@ class NDTCloud:
         """
         self.local_to_global = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
         self.max_no_points = 0
+        # TODO: Check if this is needed
         # Store an estimate of the transformation of the current scan origin to global origin
 
     def update_displacement(self, odometry_vector):
@@ -76,6 +66,7 @@ class NDTCloud:
         current local frame of reference (LiDAR origin) to the global frame of reference (map origin)
         :return: None
         """
+        # TODO: Check whether this functionality is using during testing of the mapping code
         # Update translation vector
         self.local_to_global[:3] += odometry_vector[:3]
         # Update euler angle vector
@@ -116,11 +107,11 @@ class NDTCloud:
         # Check if the point lies on the edge of the grid. If it does, provide it np. nan as a center so that that
         # particular point doesn't get considered for likelihood or jacobian, thus preventing gradient jumps.
         tol = 1.0e-7  # the maximum translation (with 3 safety margin)caused by a rotation of 1.45e-8 degrees
-        points_repeated = np.tile(ref_points, (8, 1))
+        number_row = np.shape(self.first_center)[0]
+        points_repeated = np.tile(ref_points, (number_row, 1))
         N = ref_points.shape[0]
         voxel_centers = np.zeros_like(points_repeated)
-        # TODO: Change/update for the case with no overlap
-        for i in range(8):
+        for i in range(number_row):
             pre_voxel_number = (ref_points + self.first_center[i, :]) / grid_size
             pre_voxel_center = np.round(pre_voxel_number).astype(int) * grid_size
             first_grid_edge = self.first_center[i, :] - 0.5*np.array([self.horiz_grid_size, self.horiz_grid_size,
@@ -186,6 +177,7 @@ class NDTCloud:
         transformed_xyz = transformed_pc[:, :3]
         likelihood = 0
         points_in_voxels = self.bin_in_voxels(transformed_xyz)
+        # TODO: Check if the above statement is the cause of the problem while calculating the likelihood
         for key, val in points_in_voxels.items():
             if key in self.stats:
                 sigma = self.stats[key]['sigma']
@@ -386,13 +378,69 @@ class NDTCloud:
         return voxel_points
 
 
-def ndt_approx(ref_pointcloud, horiz_grid_size=0.5, vert_grid_size=0.5):
+class NDTCloudNoOverLap(NDTCloudBase):
+    def __init__(self, xlim, ylim, zlim, input_horiz_grid_size, input_vert_grid_size):
+        super(NDTCloudNoOverLap, self).__init__(xlim, ylim, zlim, input_horiz_grid_size, input_vert_grid_size)
+        self.first_center = np.zeros([1, 3])
+        first_center_x = np.mod(2 * xlim / self.horiz_grid_size + 1, 2) * self.horiz_grid_size / 2.0
+        first_center_y = np.mod(2 * ylim / self.horiz_grid_size + 1, 2) * self.horiz_grid_size / 2.0
+        first_center_z = np.mod(2 * zlim / self.vert_grid_size + 1, 2) * self.vert_grid_size / 2.0
+        self.first_center[0, :] = np.array([first_center_x, first_center_y, first_center_z])
+        pass
+
+
+class NDTCloudOverLap(NDTCloudBase):
+    def __init__(self, xlim, ylim, zlim, input_horiz_grid_size, input_vert_grid_size):
+        super(NDTCloudOverLap, self).__init__(xlim, ylim, zlim, input_horiz_grid_size, input_vert_grid_size)
+        self.first_center = np.empty([8, 3])
+        for i in range(8):
+            offset = np.array([np.mod(i, 2), np.mod(np.int(i / 2), 2), np.int(i / 4)])
+            first_center_x = np.mod(2 * xlim / self.horiz_grid_size + offset[0] + 1, 2) * self.horiz_grid_size / 2.0
+            first_center_y = np.mod(2 * ylim / self.horiz_grid_size + offset[1] + 1, 2) * self.horiz_grid_size / 2.0
+            first_center_z = np.mod(2 * zlim / self.vert_grid_size + offset[2] + 1, 2) * self.vert_grid_size / 2.0
+            self.first_center[i, :] = np.array([first_center_x, first_center_y, first_center_z])
+        pass
+
+
+class NDTCloudInterpolated(NDTCloudBase):
+    def __init__(self, xlim, ylim, zlim, input_horiz_grid_size, input_vert_grid_size):
+        super(NDTCloudInterpolated, self).__init__(xlim, ylim, zlim, input_horiz_grid_size, input_vert_grid_size)
+        self.first_center = np.zeros([1, 3])
+        first_center_x = np.mod(2 * xlim / self.horiz_grid_size + 1, 2) * self.horiz_grid_size / 2.0
+        first_center_y = np.mod(2 * ylim / self.horiz_grid_size + 1, 2) * self.horiz_grid_size / 2.0
+        first_center_z = np.mod(2 * zlim / self.vert_grid_size + 1, 2) * self.vert_grid_size / 2.0
+        self.first_center[0, :] = np.array([first_center_x, first_center_y, first_center_z])
+        pass
+
+    def find_likelihood(self, transformed_pc):
+        """
+        Likelihood calculated on a per point basis. First, calculate the 8 closest grid centers/ or means to a point
+        """
+        transformed_xyz = transformed_pc[:, :3]
+        likelihood = 0
+        points_in_voxels = self.bin_in_voxels(transformed_xyz)
+        # TODO: Implement new version of likelihood calculation for interpolated grid
+        for key, val in points_in_voxels.items():
+            if key in self.stats:
+                sigma = self.stats[key]['sigma']
+                sigma_inv = np.linalg.inv(sigma)
+                # sigma_inv_det = np.linalg.det(sigma_inv)
+                # normal_factor = 1e-8
+                diff = np.atleast_2d(val - self.stats[key]['mu'])  # It's a coincidence that the dimensions work out
+                # likelihood += (sigma_inv_det*normal_factor)*np.sum(np.exp(-0.5*np.diag(np.matmul(np.matmul(diff, sigma_inv), diff.T))))
+                likelihood += np.sum(np.exp(-0.5 * np.diag(np.matmul(np.matmul(diff, sigma_inv), diff.T))))
+        return likelihood
+        return None
+
+
+def ndt_approx(ref_pointcloud, horiz_grid_size=0.5, vert_grid_size=0.5, type='overlapping'):
     """
     Function to create single NDT approximation for given offset and point cloud
     :param ref_pointcloud: [x, y, z, int] Nx4 or Nx3 numpy array of the reference point cloud
     :param horiz_grid_size: Float describing required horizontal grid size (in m)
     :param vert_grid_size: Float describing required vertical grid size. LiDAR span will be significantly shorter ...
     ... vertically with different concentrations, hence the different sizes. Same as horiz_grid_size by default
+    :param type: Input to control overlap, and type of objective function used for calculation
     :return: ndt_cloud: NDT approximated cloud for the given point cloud and grid size
     """
     # TODO: Add option for type of NDTCloud to be defined: naive, overlapping or interpolated
@@ -403,7 +451,20 @@ def ndt_approx(ref_pointcloud, horiz_grid_size=0.5, vert_grid_size=0.5):
     ylim = np.ceil(np.max(np.absolute(ref_pointcloud[:, 1]))) + 2*horiz_grid_size
     zlim = np.ceil(np.max(np.absolute(ref_pointcloud[:, 2]))) + 2*vert_grid_size
     # Create NDT map for reference grid
-    ndt_cloud = NDTCloud(xlim, ylim, zlim, input_horiz_grid_size=horiz_grid_size, input_vert_grid_size=vert_grid_size)
+    if type == 'overlapping':
+        ndt_cloud = NDTCloudOverLap(xlim, ylim, zlim, input_horiz_grid_size=horiz_grid_size,
+                                    input_vert_grid_size=vert_grid_size)
+    elif type == 'nooverlap':
+        ndt_cloud = NDTCloudNoOverLap(xlim, ylim, zlim, input_horiz_grid_size=horiz_grid_size,
+                                      input_vert_grid_size=vert_grid_size)
+        # TODO: Investigate memory issues in nooverlap implementation
+    elif type == 'interpolate':
+        ndt_cloud = NDTCloudInterpolated(xlim, ylim, zlim, input_horiz_grid_size=horiz_grid_size,
+                                         input_vert_grid_size=vert_grid_size)
+    else:
+        print('Wrong type of NDT Cloud specified in input. Defaulting to overlapping cloud')
+        ndt_cloud = NDTCloudOverLap(xlim, ylim, zlim, input_horiz_grid_size=horiz_grid_size,
+                                    input_vert_grid_size=vert_grid_size)
     ndt_cloud.update_cloud(ref_pointcloud)
     return ndt_cloud
 
@@ -414,6 +475,7 @@ def display_ndt_cloud(ndt_cloud, point_density = 0.1):
     :param ndt_cloud: NDT point cloud approximation
     :return: None
     """
+    # TODO: Clean up and plot with shading a function of voxel integrity
     points_to_plot, pt_integrity = ndt_cloud.display(plot_density=point_density)
     ndt_viewer = pptk.viewer(points_to_plot, pt_integrity)
     ndt_viewer.color_map('hot')
