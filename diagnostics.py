@@ -43,7 +43,7 @@ def display_voxel_points(key, voxel_stats, points=np.array([]), density=1.0, hor
     return None
 
 
-def check_gradient(objective, jacobian, ndt_cloud, test_pc, odometry_vector):
+def check_gradient(objective, jacobian, ndt_cloud, test_pc, odometry_vector, print_output=False):
     """
     Manual function to check analytical gradient with the numerical approximation
     :param objective: Target objective function (for which the gradient is to be checked)
@@ -65,11 +65,12 @@ def check_gradient(objective, jacobian, ndt_cloud, test_pc, odometry_vector):
         new_odometry[i] += delta
         jacob_val[i] = (objective(new_odometry, ndt_cloud, test_pc) - objective(odometry, ndt_cloud, test_pc))/delta
     jacobian_error = jacob_val - analytical_jacob
-    print('The analytical jacobian is ', analytical_jacob)
-    print('The numerical jacobian vector is', jacob_val)
-    print('The jacobian vector error is ', jacobian_error)
     jacob_error_norm = np.linalg.norm(jacobian_error)
-    print('The magnitude of the jacobian error is', jacob_error_norm)
+    if print_output:
+        print('The analytical jacobian is ', analytical_jacob)
+        print('The numerical jacobian vector is', jacob_val)
+        print('The jacobian vector error is ', jacobian_error)
+        print('The magnitude of the jacobian error is', jacob_error_norm)
     return jacobian_error, jacob_error_norm
 
 
