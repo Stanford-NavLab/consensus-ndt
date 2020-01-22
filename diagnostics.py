@@ -51,11 +51,12 @@ def check_gradient(objective, jacobian, ndt_cloud, test_pc, odometry_vector, pri
     :param ndt_cloud: NDT Cloud Parameter for objective and gradient
     :param test_pc: PC parameter for functions
     :param odometry_vector: Point at which the Jacobian needs to be checked
+    :param print_output: Flag to activate printing of values in the function
     :return: jacobian_error: Vector containing the difference between analytical and numerical Jacobian
     :return: jacob_error_norm: Magnitude of jacobian error
     """
     delta = 1.5e-08
-    odometry = odometry_vector
+    odom = odometry_vector
     jacob_val = np.zeros(6)
     analytical_jacob = jacobian(odometry, ndt_cloud, test_pc)
     for i in range(6):
@@ -63,7 +64,7 @@ def check_gradient(objective, jacobian, ndt_cloud, test_pc, odometry_vector, pri
         for j in range(6):
             new_odometry[j] += odometry_vector[j]
         new_odometry[i] += delta
-        jacob_val[i] = (objective(new_odometry, ndt_cloud, test_pc) - objective(odometry, ndt_cloud, test_pc))/delta
+        jacob_val[i] = (objective(new_odometry, ndt_cloud, test_pc) - objective(odom, ndt_cloud, test_pc))/delta
     jacobian_error = jacob_val - analytical_jacob
     jacob_error_norm = np.linalg.norm(jacobian_error)
     if print_output:
@@ -72,6 +73,29 @@ def check_gradient(objective, jacobian, ndt_cloud, test_pc, odometry_vector, pri
         print('The jacobian vector error is ', jacobian_error)
         print('The magnitude of the jacobian error is', jacob_error_norm)
     return jacobian_error, jacob_error_norm
+
+
+def check_hessian(jacobian, hessian, ndt_cloud, test_pc, odometry_vector, print_output=False):
+    # First column of hessian is derivative of first element of jacobian with respect to all the variables
+    delta = 1.5e-8
+    odom = odometry_vector
+    hess_val = np.zeros([6, 6])
+    analytical_hess = hessian(odometry, ndt_cloud, test_pc)
+    for cidx in range(6):
+        for ridx in range(6):
+            new_odometry = np.zeros(6)
+            new_odometry += odometry_vector
+            new_odometry[ridx] += delta
+            hess_val[ridx, cidx] = (jacobian(new_odometry, ndt_cloud, test_pc)[cidx] - jacobian(odom, ndt_cloud,
+                                                                                                test_pc)[cidx]) / delta
+    hessian_error = hess_val - analytical_hess
+    hess_error_norm = np.linalg.norm(hessian_error)
+    if print_output:
+        print('The analytical jacobian is ', analytical_hess)
+        print('The numerical jacobian vector is', hess_val)
+        print('The jacobian vector error is ', hessian_error)
+        print('The magnitude of the jacobian error is', hess_error_norm)
+    return hessian_error, hess_error_norm
 
 
 def objective_variation(ndt_cloud, test_pc, axis=0, limit=0.5, num_vals=40):
