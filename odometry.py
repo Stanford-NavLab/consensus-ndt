@@ -20,29 +20,30 @@ global hess_neval
 hess_neval = 0
 
 
-def odometry(ndt_cloud, test_pc):
+def odometry(ndt_cloud, test_pc, max_iter_pre=15, max_iter_post=10, integrity_filter=0.7):
     """
     Function to find the best traansformation (in the form of a translation, Euler angle vector)
     :param ndt_cloud: NDT approximation of the prior representation
     :return: test_pc: Point cloud which has to be matched to the existing NDT approximation
     """
+    global obj_neval
+    obj_neval = 0
+    global jacob_neval
+    jacob_neval = 0
+    global hess_neval
+    hess_neval = 0
     test_xyz = test_pc[:, :3]
-    # TODO: Change the initial after the test is done
     initial_odom = np.zeros(6)
-    #initial_odom = search_initial(ndt_cloud, test_xyz)
-    # initial_odom = np.array([[0.30756262, 0.02702107, 0.01152367, 0.03415157, 0.6494663, 0.72756484]])
-    # xlim, ylim, zlim = find_pc_limits(test_xyz)
-    # odometry_bounds = Bounds([-xlim, -ylim, -zlim, -180.0, -90.0, -180.0], [xlim, ylim, zlim, 180.0, 90.0, 180.0])
-    # TODO: Any way to implement bounds on the final solution?
+    # initial_odom = search_initial(ndt_cloud, test_xyz)
     res1 = minimize(objective, initial_odom, method='Newton-CG', jac=jacobian_vect,
-                   hess=hessian_vect, args=(ndt_cloud, test_xyz), options={'disp': True, 'maxiter': 15})
+                   hess=hessian_vect, args=(ndt_cloud, test_xyz), options={'disp': True, 'maxiter': max_iter_pre})
     # res = minimize(objective, initial_odom, method='BFGS', args=(ndt_cloud, test_xyz), options={'disp' : True})
     temp_odom_vector = res1.x
     transformed_xyz = utils.transform_pc(temp_odom_vector, test_xyz)
     ndt_cloud.find_integrity(transformed_xyz)
-    ndt_cloud.filter_voxels_integrity(integrity_limit=0.7)
+    ndt_cloud.filter_voxels_integrity(integrity_limit=integrity_filter)
     res2 = minimize(objective, temp_odom_vector, method='Newton-CG', jac=jacobian_vect,
-                   hess=hessian_vect, args=(ndt_cloud, test_xyz), options={'disp': True, 'maxiter': 10})
+                   hess=hessian_vect, args=(ndt_cloud, test_xyz), options={'disp': True, 'maxiter': max_iter_post})
     # Return odometry in navigational frame of reference
     odom_vector = res2.x
     return odom_vector
@@ -89,7 +90,6 @@ def objective(odometry_vector, ndt_cloud, test_pc):
     global hess_neval
     transformed_pc = utils.transform_pc(odometry_vector, test_pc)
     obj_value = -1 * ndt_cloud.find_likelihood(transformed_pc)
-    # print(obj_value)
     print('Objective iteration: {:4d}'.format(obj_neval), 'Jacobian iteration: {:4d}'.format(jacob_neval),
           'Hessian iteration: {:4d}'.format(hess_neval), 'Objective Value: {:10.4f}'.format(obj_value))
     """
@@ -103,6 +103,7 @@ def objective(odometry_vector, ndt_cloud, test_pc):
 
 
 def jacobian(odometry_vector, ndt_cloud, test_pc):
+    # FUNCTION DEPRECATED. VECTORIZED JACOBIAN SHOWS SUPERIOR PERFORMANCE
     """
     Function to return the Jacobian of the likelihood objective for the odometry calculation
     :param odometry_vector: The point at which the Jacobian is to be evaluated
@@ -113,7 +114,7 @@ def jacobian(odometry_vector, ndt_cloud, test_pc):
     N = test_pc.shape[0]
     jacobian_val = np.zeros(6)
     transformed_pc = utils.transform_pc(odometry_vector, test_pc)
-    transform_centers = ndt_cloud.find_voxel_center(transformed_pc)
+    _, transform_centers = ndt_cloud.find_voxel_center(transformed_pc)
     for pt_num in range(N):
         # The output from find_voxel_center matches this implementation and the next line should yield the dict key
         center_key = tuple(transform_centers[pt_num][:])
@@ -151,16 +152,12 @@ def jacobian_vect(odometry_vector, ndt_cloud, test_pc):
             mu = ndt_cloud.stats[key]['mu']
             sigma = ndt_cloud.stats[key]['sigma']
             sigma_inv = np.linalg.inv(sigma)
-            # TODO: Review sigma_inv_det
-            # sigma_inv_det = np.linalg.det(sigma_inv)
-            # normal_factor = 1e-8
             q = value - mu
             if q.ndim < 2:
                 q = np.atleast_2d(q)
             delq_delt = find_delqdelt_vect(odometry_vector, value)
             first_term = np.matmul(q, np.matmul(sigma_inv, delq_delt.T))
             exp_term = np.exp(-0.5 * np.diag(np.matmul(q, np.matmul(sigma_inv, q.T))))
-            # g = (sigma_inv_det*normal_factor)*np.sum(np.diagonal(first_term, axis1=1, axis2=2)*exp_term, axis=1)
             g = np.sum(np.diagonal(first_term, axis1=1, axis2=2) * exp_term, axis=1)
             """
             old_g = np.zeros(6)
@@ -200,15 +197,12 @@ def hessian_vect(odometry_vector, ndt_cloud, test_pc):
             mu = ndt_cloud.stats[key]['mu']
             sigma = ndt_cloud.stats[key]['sigma']
             sigma_inv = np.linalg.inv(sigma)
-            # TODO: Review sigma_inv_det
-            # sigma_inv_det = np.linalg.det(sigma_inv)
             # normal_factor = 1e-8
             q = value - mu
             delq_delt = find_delqdelt_vect(odometry_vector, value)
             del2q_deltnm = find_del2q_deltnm_vect(odometry_vector, value)
+            # TODO: Use new found knowledge of matrix multiplication to make this more stable (replicable too)
             # t2 = time.time()
-            # TODO: sigma_inv_det used here for hessian_vect
-            # exp_term = (sigma_inv_det*normal_factor)*np.diag(np.exp(-0.5 * np.matmul(q, np.matmul(sigma_inv, q.T))))
             exp_term = np.diag(np.exp(-0.5 * np.matmul(q, np.matmul(sigma_inv, q.T))))
             temp1 = np.einsum('abi,jbc->aijc', delq_delt, np.matmul(sigma_inv, delq_delt.T))
             term1 = np.sum(np.diagonal(temp1, axis1=0, axis2=3)*exp_term, axis=2)
@@ -280,10 +274,11 @@ def hessian(odometry_vector, ndt_cloud, test_pc):
     :param test_pc: The point cloud for which the optimization is being carried out
     :return: hessian_val: The Hessian matrix of the objective w.r.t. the odometry vector
     """
+    # TODO: Verify vectorized hessian and remove this function
     N = test_pc.shape[0]
     hessian_val = np.zeros([6, 6])
     transformed_pc = utils.transform_pc(odometry_vector, test_pc)
-    transform_centers = ndt_cloud.find_voxel_center(transformed_pc)
+    _, transform_centers = ndt_cloud.find_voxel_center(transformed_pc)
     for pt_num in range(N):
         center_key = tuple(transform_centers[pt_num, :])
         if center_key in ndt_cloud.stats:
@@ -309,6 +304,29 @@ def hessian(odometry_vector, ndt_cloud, test_pc):
     return hessian_val
 
 
+def interp_odometry():
+    # TODO: Write interpolated odometry function
+
+    return None
+
+
+def interp_objective():
+    # TODO: Write interpolated objective function
+    return None
+
+
+def interp_jacobian():
+    # TODO: Write interpolated jacobian function
+    return None
+
+
+def interp_hessian():
+    # TODO: Write interpolated hessian function
+    return None
+
+################################################################
+# Consensus odometry function follow. Don't really work
+################################################################
 def consensus_odometry(ndt_cloud, test_pc):
     """
     Function to find the best traansformation (in the form of a translation, Euler angle vector)
@@ -316,7 +334,6 @@ def consensus_odometry(ndt_cloud, test_pc):
     :return: test_pc: Point cloud which has to be matched to the existing NDT approximation
     """
     test_xyz = test_pc[:, :3]
-    # TODO: Change the initial after the test is done
     initial_odom = np.zeros(6)
     #initial_odom = search_initial(ndt_cloud, test_xyz)
     # initial_odom = np.array([[0.30756262, 0.02702107, 0.01152367, 0.03415157, 0.6494663, 0.72756484]])
@@ -372,6 +389,7 @@ def consensus_jacobian(odometry_vector, ndt_cloud, test_pc):
     :param test_pc: The point cloud for which the optimization is being performed
     :return: jacobian_val: The Jacobian matrix (of the objective w.r.t the odometry vector)
     """
+    # TODO: Does Consensus Jacobian work?
     jacobian_val = np.zeros(6)
     transformed_pc = utils.transform_pc(odometry_vector, test_pc)
     points_in_voxels = ndt_cloud.bin_in_voxels(transformed_pc)
@@ -461,6 +479,8 @@ def consensus_hessian(odometry_vector, ndt_cloud, test_pc):
     global hess_neval
     hess_neval += 1
     return hessian_val
+
+
 ################################################################
 # Helper functions for odometry calculation follow
 ################################################################
@@ -528,19 +548,20 @@ def find_del2q_deltnm_vect(odometry_vector, points):
     :return: del2q_deltnm: Nx3x6x6 matrix of del2/deltndeltm
     """
     N = points.shape[0]
-    del2q_deltnm = np.zeros([N, 3, 6, 6])
+    del2q_deltnm_old = np.zeros([N, 3, 6, 6])
     delta = 1.5e-08
     original_delq_delt = find_delqdelt_vect(odometry_vector, points)
-    # TODO: Vectorize computation of Hessian for different odometry vectors to happen at once
-    # TODO: Further rigorous checking of the Hessian results (there were some singularities encountered during tests)
+    # TODO: Vectorize computation of second derivative for different odometry vectors to happen at once
     for i in range(6):
         odometry_new = np.zeros(6)
         odometry_new[i] = odometry_new[i] + delta
         points_new = utils.transform_pc(odometry_new, points)
         # Assuming that the incremental change allows us to directly add a rotation instead of an incremental change
         odometry_new += odometry_vector
-        del2q_deltnm[:, :, :, i] = (find_delqdelt_vect(odometry_new, points_new) - original_delq_delt) / delta
-    return del2q_deltnm
+        del2q_deltnm_old[:, :, :, i] = (find_delqdelt_vect(odometry_new, points_new) - original_delq_delt) / delta
+    del2q_deltnm_new = np.zeros([N, 3, 6, 6])
+    delta = 1.5e-8
+    return del2q_deltnm_old
 
 
 def find_delqdelt(odometry_vector, q):
