@@ -14,7 +14,7 @@ import pptk
 import diagnostics
 from matplotlib import pyplot as plt
 import pykitti
-
+import lidar_mods
 
 def plot_cv():
     kitti_pcs = data_utils.load_kitti_pcs(0, 60, pc_mode='laptop')

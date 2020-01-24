@@ -311,9 +311,8 @@ def hessian_vect_test():
     return None
 
 
-
-#verify_interp_lkd()
-#interpolate_likelihood_test()
-#test_interp_weights()
-#demo_hessian_check()
-hessian_vect_test()
+# verify_interp_lkd()
+interpolate_likelihood_test()
+# test_interp_weights()
+# demo_hessian_check()
+# hessian_vect_test()
