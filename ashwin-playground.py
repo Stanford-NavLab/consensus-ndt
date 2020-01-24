@@ -24,7 +24,7 @@ def sigmoid(x):
 
 
 def extract_data():
-    basedir = 'D:\\Users\\kanhe\\Box Sync\\RA Work\\ION GNSS 19\\Implementation\\Dataset'
+    basedir = 'D:\\Users\\kanhe\\Box Sync\\Research Projects\\Consensus NDT SLAM\\Dataset'
     date = '2011_09_26'
     drive = '0005'
 
@@ -32,7 +32,6 @@ def extract_data():
 
     points_lidar = data.velo
     return data
-
 
 
 def ndt_test():
@@ -180,35 +179,7 @@ def new_integrity_example():
     return None
 
 
-def transforms_test():
-    angles = [0, np.pi/4, np.pi/3]
-    for i in range(3):
-        for j in range(3):
-            for k in range(3):
-                R = transforms3d.euler.euler2mat(angles[i], angles[j], angles[k], 'rxyz')
-                c1 = np.cos(angles[i])
-                s1 = np.sin(angles[i])
-                c2 = np.cos(angles[j])
-                s2 = np.sin(angles[j])
-                c3 = np.cos(angles[k])
-                s3 = np.sin(angles[k])
-                test_R = np.array([[c2*c3, -c2*s3, s2], [c1*s3 + c3*s1*s2, c1*c3 - s1*s2*s3, -c2*s1],
-                                   [s1*s3 - c1*c3*s2, c3*s1 + c1*s2*s3, c1*c2]])
-                error_R = R - test_R
-                mag_R = np.max(np.abs(error_R))
-                print('Case 1: i:', i, ' j:', j, ' k:', k, ' Value:', mag_R)
-                c1 = np.cos(angles[k])
-                s1 = np.sin(angles[k])
-                c2 = np.cos(angles[j])
-                s2 = np.sin(angles[j])
-                c3 = np.cos(angles[i])
-                s3 = np.sin(angles[i])
-                test_R_2 = np.array([[c1*c2, c1*s2*s3 - c3*s1, s1*s3 + c1*c3*s2],
-                                     [c2*s1, c1*c3+s1*s2*s3, c3*s1*s2 - c1*s3],[-s2, c2*s3, c2*c3]])
-                error_R_2 = R - test_R_2
-                mag_R_2 = np.max(np.abs(error_R_2))
-                #print('Case 2: i:', i, ' j:', j, ' k:', k, ' Value:', mag_R_2)
-    return None
+
 
 
 def paper_total_con():
@@ -464,6 +435,8 @@ def ndt_resolution():
     return None
 
 
+
+
 # vox_con()
 # paper_total_con()
 # total_metric_test()
@@ -474,4 +447,5 @@ def ndt_resolution():
 # new_integrity_example()
 # paper_vox_con_2()
 # c_v_presentation_plot()
-ndt_resolution()
+# ndt_resolution()
+test_new_ndt()
