@@ -36,16 +36,19 @@ def odometry(ndt_cloud, test_pc, max_iter_pre=15, max_iter_post=10, integrity_fi
     initial_odom = np.zeros(6)
     # initial_odom = search_initial(ndt_cloud, test_xyz)
     res1 = minimize(objective, initial_odom, method='Newton-CG', jac=jacobian_vect,
-                   hess=hessian_vect, args=(ndt_cloud, test_xyz), options={'disp': True, 'maxiter': max_iter_pre})
+                    hess=hessian_vect, args=(ndt_cloud, test_xyz), options={'disp': True, 'maxiter': max_iter_pre})
     # res = minimize(objective, initial_odom, method='BFGS', args=(ndt_cloud, test_xyz), options={'disp' : True})
     temp_odom_vector = res1.x
     transformed_xyz = utils.transform_pc(temp_odom_vector, test_xyz)
     ndt_cloud.find_integrity(transformed_xyz)
     ndt_cloud.filter_voxels_integrity(integrity_limit=integrity_filter)
-    res2 = minimize(objective, temp_odom_vector, method='Newton-CG', jac=jacobian_vect,
-                   hess=hessian_vect, args=(ndt_cloud, test_xyz), options={'disp': True, 'maxiter': max_iter_post})
+    if max_iter_post != 0:
+        res2 = minimize(objective, temp_odom_vector, method='Newton-CG', jac=jacobian_vect,
+                        hess=hessian_vect, args=(ndt_cloud, test_xyz), options={'disp': True, 'maxiter': max_iter_post})
+        odom_vector = res2.x
+    else:
+        odom_vector = np.copy(temp_odom_vector)
     # Return odometry in navigational frame of reference
-    odom_vector = res2.x
     return odom_vector
 
 
