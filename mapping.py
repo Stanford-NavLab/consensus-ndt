@@ -16,6 +16,7 @@ import utils
 
 # TODO: Check rotation and displacement conventions for the map. Does the optimizer return the distance of the pc from
 #  the map, or the distance of the map from the pc? - Distance of the PC from the map
+# Convention is: Transformation converts test point cloud to the reference NDT
 
 # TODO: Populate docstring for all functions once they're tested and working
 
