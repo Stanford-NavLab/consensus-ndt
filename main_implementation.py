@@ -25,6 +25,7 @@ def main():
     iter1 = 15
     iter2 = 15
 
+    print('Loading dataset')
     pcs = data_utils.load_uiuc_pcs(0, 10, mode=run_mode)
 
     assert(total_iters == iter1 + iter2)
@@ -38,12 +39,14 @@ def main():
     error_consensus = np.zeros([np.size(integrity_filters), 1])
     time_consensus = np.zeros_like(error_consensus)
     for idx, filter in enumerate(integrity_filters):
+        print('Running case ', idx)
         tic = time.time()
         test_odom = odometry.odometry(ref_ndt, trans_pc, max_iter_pre=iter1, max_iter_post=iter2,
                                       integrity_filter=filter)
         toc = time.time()
         error_consensus[idx] = np.linalg.norm(ground_truth - test_odom)
         time_consensus[idx] = toc - tic
+    print('Running baseline case')
     tic = time.time()
     new_odom = odometry.odometry(ref_ndt, trans_pc, max_iter_pre=total_iters, max_iter_post=0)
     toc = time.time()
