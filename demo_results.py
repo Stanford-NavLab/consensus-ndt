@@ -68,6 +68,34 @@ def presentation_run():
     return None
 
 
+def fault_consensus():
+    kitti_pcs = data_utils.load_kitti_pcs(0, 60, pc_mode='server')
+    kitti_ground_truth = data_utils.kitti_sequence_poses(0, 60, seq_input_mode='server')
+    pc_index = np.array([5, 30, 50])
+    delta_r = np.array([0, 0.1, 0.2, 0.3, 0.4, 0.5, 1.0, 2.0, 2.5, 5.0, 10.0])
+    for idx in pc_index:
+        for cand_r in delta_r:
+            #print(len(kitti_pcs))
+            #print(len(kitti_ground_truth))
+            prev_pc = kitti_pcs[idx]
+            curr_pc = kitti_pcs[idx+1]
+            #print('Calculating NDT approximation')
+            prev_ndt = ndt.ndt_approx(prev_pc, horiz_grid_size=1.0, vert_grid_size=1.0)
+            inv_odom = utils.invert_odom_transfer(kitti_ground_truth[idx + 1])
+            #print('Transforming point cloud by ground truth')
+            trans_pc = utils.transform_pc(inv_odom, curr_pc)
+            prev_ndt.find_integrity(trans_pc)
+            prev_ndt.filter_voxels_integrity()
+            #print('Modifying the transformed point cloud with the additive laser bias')
+            lidar_mod_trans_pc = lidar_mods.modify_ranging(trans_pc, cand_r)
+            #print('Calculating integrity of biased point cloud')
+            Cm, _ = prev_ndt.find_integrity(lidar_mod_trans_pc)
+            print('For candidate number ', idx, 'and ranging error ', cand_r, 'C_m is ', Cm)
+            #print('Plotting both point clouds')
+            #diagnostics.plot_consec_pc(prev_pc, lidar_mod_trans_pc)
+    return None
+
+
 def old_run():
     folder_location = '/home/kanhere2/ion-gnss-19/uiuc_dataset/'
     filename = 'pc_'
