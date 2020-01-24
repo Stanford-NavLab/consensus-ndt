@@ -80,7 +80,7 @@ def check_hessian(jacobian, hessian, ndt_cloud, test_pc, odometry_vector, print_
     delta = 1.5e-8
     odom = odometry_vector
     hess_val = np.zeros([6, 6])
-    analytical_hess = hessian(odometry, ndt_cloud, test_pc)
+    analytical_hess = hessian(odom, ndt_cloud, test_pc)
     for cidx in range(6):
         for ridx in range(6):
             new_odometry = np.zeros(6)
@@ -88,6 +88,7 @@ def check_hessian(jacobian, hessian, ndt_cloud, test_pc, odometry_vector, print_
             new_odometry[ridx] += delta
             hess_val[ridx, cidx] = (jacobian(new_odometry, ndt_cloud, test_pc)[cidx] - jacobian(odom, ndt_cloud,
                                                                                                 test_pc)[cidx]) / delta
+            print('Checking Hessian for ', [ridx, cidx])
     hessian_error = hess_val - analytical_hess
     hess_error_norm = np.linalg.norm(hessian_error)
     if print_output:
