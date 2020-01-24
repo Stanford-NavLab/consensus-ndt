@@ -1,5 +1,5 @@
 """
-implementation_server.py
+main_implementation.py
 File for the offline implementation of NDT-SLAM on the Talbot 330 resident powerhouse machine
 Author: Ashwin Kanhere
 Date Created: 16th June 2019
@@ -17,6 +17,13 @@ from mpl_toolkits.mplot3d import Axes3D
 import data_utils
 import lidar_mods
 # TODO: Change this file to be implementation for both server and laptop versions
+
+
+def main():
+    # TODO: Move main implementations to this function.
+    # TODO: Move all other functions to demo_results or function_tests
+
+    return 0
 
 
 def fault_consensus():
