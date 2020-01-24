@@ -4,7 +4,7 @@ File containing class definitions of NDT approximation for Consensus NDT SLAM
 Also contains helper NDT functions
 Author: Ashwin Kanhere
 Date created: 15th April 2019
-Last modified: 13th June 2019
+Last modified: 13th November 2019
 """
 import numpy as np
 import pptk
@@ -16,8 +16,9 @@ import odometry
 import diagnostics
 import integrity
 import numpy_indexed
+import itertools
 import time
-from scipy.interpolate import RegularGridInterpolator
+from scipy.interpolate import RegularGridInterpolator as RGI
 
 """
 Importing base libraries
@@ -56,7 +57,9 @@ class NDTCloudBase:
         """
         self.local_to_global = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
         self.max_no_points = 0
-        # TODO: Check if this is needed
+        self.first_center = np.empty([1, 3])
+        self.max_no_voxels = -1
+        # TODO: Check if current displacement from navigation origin is needed
         # Store an estimate of the transformation of the current scan origin to global origin
 
     def update_displacement(self, odometry_vector):
@@ -84,29 +87,20 @@ class NDTCloudBase:
         self.local_to_global[3:] = angle_new
         return None
 
-    def find_voxel_center(self, ref_pointcloud):
+    def find_voxel_center(self, ref_pointcloud, tol=1.0e-7):
         """
         A function to return grid indices for a given set of 3D points. The input may be a set of (x, y, z) Nx3 or
         (x, y, z, int) Nx4. This function is written to be agnostic to either form of the array
         This function also checks if points on a edge of the grid upto a tolerance level. If they are, it assigns them
         a value to ensure that no calculations involve that point
         :param ref_pointcloud: Nx3 or Nx4 numpy array for which binning is required
+        :param tol: Tolerance for picking center. Default values used for overlapping
         :return: grid_centers: Matrix containing center coordinates corresponding to the given points Nx3
         """
         # Used an array over a tuple as there is a small possibility that the coordinates might change
         ref_points = np.array(ref_pointcloud[:, :3])  # to remove intensity if it has been passed accidentally
-        # int(ref_x/horizontal grid size)* horizontal grid size + first grid center (same sign that the quotient is)
-        # first_center is the offset from the origin of the first grid center (in either direction)
         grid_size = np.array([self.horiz_grid_size, self.horiz_grid_size, self.vert_grid_size])
-        """
-        Main idea: First add the center. Things that were getting rounded to 23 while they should've gone down to 22, 
-        22.6 for example will for sure get rounded up now. Then remove the added center in the final project to bring 
-        them back down.
-        0.03 second case. Adding center will give 0.53. Rounding will give 1 and removing the center will give 0.5
-        """
-        # Check if the point lies on the edge of the grid. If it does, provide it np. nan as a center so that that
-        # particular point doesn't get considered for likelihood or jacobian, thus preventing gradient jumps.
-        tol = 1.0e-7  # the maximum translation (with 3 safety margin)caused by a rotation of 1.45e-8 degrees
+        #tol = 1.0e-7  # the maximum translation (with 3 safety margin)caused by a rotation of 1.45e-8 degrees
         number_row = np.shape(self.first_center)[0]
         points_repeated = np.tile(ref_points, (number_row, 1))
         N = ref_points.shape[0]
@@ -116,14 +110,13 @@ class NDTCloudBase:
             pre_voxel_center = np.round(pre_voxel_number).astype(int) * grid_size
             first_grid_edge = self.first_center[i, :] - 0.5*np.array([self.horiz_grid_size, self.horiz_grid_size,
                                                                       self.vert_grid_size])
-            # first_grid_edge[first_grid_edge == 0] = 1.0
-            # Taking the mod with the grid size should make the above statement redundant
-            # In this case, points that are literally in the middle of the voxel will get ignored
             line_check = np.abs(np.mod(ref_points, grid_size) + first_grid_edge)
             pre_voxel_center[line_check < tol] = np.nan
             pre_voxel_center[np.abs(line_check - 1) < tol] = np.nan
-            voxel_centers[i*N:(i+1)*N, :] = np.multiply(np.sign(ref_points), np.abs(pre_voxel_center) - np.broadcast_to(
-                self.first_center[i, :], (N, 3)))
+            voxel_centers[i*N:(i+1)*N, :] = np.multiply(np.sign(ref_points), np.abs(pre_voxel_center) -
+                                                        np.sign(ref_points)*np.broadcast_to(self.first_center[i, :],
+                                                                                            (N, 3)))
+            # Modification of multiplying by a sign in the center term seems to have fixed an issue with negative coords\
         return points_repeated, voxel_centers
 
     def bin_in_voxels(self, points_to_bin):
@@ -151,7 +144,6 @@ class NDTCloudBase:
         transformed_xyz = transformed_pc[:, :3]
         likelihood = 0
         points_in_voxels = self.bin_in_voxels(transformed_xyz)
-        # TODO: Check if the above statement is the cause of the problem while calculating the likelihood
         for key, val in points_in_voxels.items():
             if key in self.stats:
                 sigma = self.stats[key]['sigma']
@@ -230,6 +222,17 @@ class NDTCloudBase:
                     self.stats[k]['mu'] = np.mean(v, axis=0)
                     self.stats[k]['sigma'] = np.cov(v, rowvar=False)
                     self.stats[k]['no_points'] = no_in_voxel
+                    # New method of index assignment
+                    self.stats[k]['idx'] = self.pairing_cent2int(np.atleast_2d(np.array(k)))
+                    self.max_no_voxels += 1
+                    """
+                    if self.max_no_voxels < 0:
+                        self.stats[k]['idx'] = 0
+                        self.max_no_voxels = 0
+                    else:
+                        self.stats[k]['idx'] = self.max_no_voxels + 1
+                        self.max_no_voxels += 1
+                    """
                     if self.stats[k]['no_points'] > self.max_no_points:
                         self.max_no_points = self.stats[k]['no_points']
         return None
@@ -340,7 +343,10 @@ class NDTCloudBase:
             del self.stats[del_key]
         return None
 
+    """
+    Following function doesn't seem to be used anywhere. Removed 
     def points_in_filled_voxels(self, test_pc):
+        # Intuition: This functionality is used only in bin_in_voxels. So might be better deleted and just put in there
         points_repeated, voxel_centers = self.find_voxel_center(test_pc)
         dummy = numpy_indexed.group_by(voxel_centers, points_repeated)
         repeated_voxel_points = np.empty([0, 3])
@@ -350,6 +356,56 @@ class NDTCloudBase:
                 repeated_voxel_points = np.vstack((repeated_voxel_points, dummy[1][i]))
         voxel_points = np.unique(repeated_voxel_points, axis=0)
         return voxel_points
+    """
+
+    def pairing_cent2int(self, point_centers):
+        """
+
+        :param point_centers: Nx3 numpy array containing coordinates under consideration
+        :return:
+        """
+        """
+        1. Using voxel size, convert each center to a coordinate with only integer values
+        2. Implement a standard pairing function to bind said coordinate to an index
+        """
+        # WARNING: Pass by reference might screw up with a bunch of values
+        assert(point_centers.shape[1] == 3)  # Checking that the matrix is all row vectors
+        # Assign unique positive value to each integer
+        pt_centers_temp = np.copy(point_centers)
+        pt_centers_temp = (pt_centers_temp + self.first_center[0, :])/np.array([self.horiz_grid_size, self.horiz_grid_size, self.vert_grid_size])
+        pt_centers_temp[pt_centers_temp > 0] = 2*pt_centers_temp[pt_centers_temp > 0]
+        pt_centers_temp[pt_centers_temp < 0] = -2*pt_centers_temp[pt_centers_temp < 0] - 1
+        x = np.atleast_2d(pt_centers_temp[:, 0])
+        y = np.atleast_2d(pt_centers_temp[:, 1])
+        z = np.atleast_2d(pt_centers_temp[:, 2])
+        assert(np.min(x) > -1)
+        assert(np.min(y) > -1)
+        assert(np.min(z) > -1)
+        pair_1 = np.atleast_2d(0.5*(x + y)*(x + y + 1) + y)
+        int_pairing = np.atleast_2d(0.5*(pair_1 + z)*(pair_1 + z + 1) + z)
+        int_pairing = np.reshape(int_pairing, [-1, 1])
+        assert(int_pairing.shape == (point_centers.shape[0], 1))
+        return int_pairing
+
+    def pair_check(self):
+        """
+        Checking that the number of voxels and the number of unique index assignments is the same
+        :return: None
+        """
+        # This was totally worth it
+        voxels = []
+        number = 0
+        for key in self.stats:
+            voxels.append(self.stats[key]['idx'][0][0])
+            number += 1
+        voxels = np.array(voxels)
+        unique_voxels, unique_counts, case_counts = np.unique(voxels, return_index=True, return_counts=True)
+        unique_no = np.size(unique_voxels)
+        print('The number of voxels is ', number)
+        print('The number of maximum voxels is ', self.max_no_voxels)
+        print('The number of unique voxels is ', unique_no)
+        assert(np.size(unique_voxels) == self.max_no_voxels)
+        return None
 
 
 class NDTCloudNoOverLap(NDTCloudBase):
@@ -360,7 +416,6 @@ class NDTCloudNoOverLap(NDTCloudBase):
         first_center_y = np.mod(2 * ylim / self.horiz_grid_size + 1, 2) * self.horiz_grid_size / 2.0
         first_center_z = np.mod(2 * zlim / self.vert_grid_size + 1, 2) * self.vert_grid_size / 2.0
         self.first_center[0, :] = np.array([first_center_x, first_center_y, first_center_z])
-        pass
 
 
 class NDTCloudOverLap(NDTCloudBase):
@@ -373,7 +428,6 @@ class NDTCloudOverLap(NDTCloudBase):
             first_center_y = np.mod(2 * ylim / self.horiz_grid_size + offset[1] + 1, 2) * self.horiz_grid_size / 2.0
             first_center_z = np.mod(2 * zlim / self.vert_grid_size + offset[2] + 1, 2) * self.vert_grid_size / 2.0
             self.first_center[i, :] = np.array([first_center_x, first_center_y, first_center_z])
-        pass
 
 
 class NDTCloudInterpolated(NDTCloudBase):
@@ -384,27 +438,152 @@ class NDTCloudInterpolated(NDTCloudBase):
         first_center_y = np.mod(2 * ylim / self.horiz_grid_size + 1, 2) * self.horiz_grid_size / 2.0
         first_center_z = np.mod(2 * zlim / self.vert_grid_size + 1, 2) * self.vert_grid_size / 2.0
         self.first_center[0, :] = np.array([first_center_x, first_center_y, first_center_z])
-        pass
+
+    def find_octant(self, transformed_xyz):
+        # Use itertools.product here for oneline implementation
+        _, point_centers = self.find_voxel_center(transformed_xyz)
+        # N = transformed_xyz.shape[0]
+        diff_sign = np.sign(transformed_xyz - point_centers)
+        diff_sign[np.isnan(diff_sign)] = -1.0
+        octant_index = np.zeros([2, 2, 2])
+        octant_index[1, 1, 1] = 1
+        octant_index[0, 1, 1] = 2
+        octant_index[0, 0, 1] = 3
+        octant_index[1, 0, 1] = 4
+        octant_index[1, 1, 0] = 5
+        octant_index[0, 1, 0] = 6
+        octant_index[0, 0, 0] = 7
+        octant_index[1, 0, 0] = 8
+        diff_sign[diff_sign == -1] = 0
+        diff_sign = diff_sign.astype(np.int, copy=False)
+        octant = octant_index[diff_sign[:, 0], diff_sign[:, 1], diff_sign[:, 2]]
+        return octant
+
+    def find_neighbours(self, transformed_xyz, no_neighbours=8):
+        # N = transformed_xyz.shape[0]
+        if no_neighbours == 8:
+            octants = self.find_octant(transformed_xyz)
+        else:
+            octants = 0
+            ValueError("Input number of neighbours not supported")
+        diff_index = self.octant2diff()
+        oct_index = octants.astype(np.int) - 1
+        grid_disp = np.array([self.horiz_grid_size, self.horiz_grid_size, self.vert_grid_size])
+        _, point_centers = self.find_voxel_center(transformed_xyz, tol=0.0)
+        nearby = np.tile(point_centers, 8) + np.tile(grid_disp, no_neighbours)*diff_index[oct_index, :]
+        assert(not np.any(np.isnan(nearby)))
+        return nearby
+
+    @staticmethod
+    def octant2diff():
+        # Defining a reverse octant index\
+        oct_rev = np.zeros([8, 2, 3])
+        oct_rev[0, 1, :] = [1, 1, 1]
+        oct_rev[1, 1, :] = [-1, 1, 1]
+        oct_rev[2, 1, :] = [-1, -1, 1]
+        oct_rev[3, 1, :] = [1, -1, 1]
+        oct_rev[4, 1, :] = [1, 1, -1]
+        oct_rev[5, 1, :] = [-1, 1, -1]
+        oct_rev[6, 1, :] = [-1, -1, -1]
+        oct_rev[7, 1, :] = [1, -1, -1]
+        # Creating a displacement vector pertaining to each octant
+        diff_index = np.zeros([8, 24])
+        for vidx in range(8):
+            counter = 0
+            for xidx in range(2):
+                for yidx in range(2):
+                    for zidx in range(2):
+                        diff_index[vidx, 3*counter:3*counter+3] = [oct_rev[vidx, xidx, 0], oct_rev[vidx, yidx, 1],
+                                                                   oct_rev[vidx, zidx, 2]]
+                        counter += 1
+        return diff_index
+
+    def find_interp_weights(self, pts, neighbours):
+        """
+        Function debugged by checking sum of all values and that the max and min do not leave the unit interval
+        :param pts:
+        :param neighbours:
+        :return:
+        """
+        norm_neighbours = (neighbours - np.tile(neighbours[:, :3], 8)) / \
+                          np.tile(np.array([self.horiz_grid_size, self.horiz_grid_size, self.vert_grid_size]), 8)
+        norm_neighbours[norm_neighbours == -1] = 1
+        diff_pts_mask = np.abs(np.tile(pts - neighbours[:, :3], 8))
+        diff_pts_minus_mask = np.ones_like(diff_pts_mask) - diff_pts_mask
+        weight_fact = diff_pts_mask*norm_neighbours + diff_pts_minus_mask*(1 - norm_neighbours)
+        testing = np.hsplit(weight_fact, 8)
+        weights = np.prod(testing, axis=2) #weights.shape = (8, N)
+        return weights
 
     def find_likelihood(self, transformed_pc):
         """
         Likelihood calculated on a per point basis. First, calculate the 8 closest grid centers/ or means to a point
+        Use expectation of point for each Gaussian as the value at the mean of that Gaussian
+        Finally, calculate an interpolation for the actual value of the mean with the associated weights
         """
         transformed_xyz = transformed_pc[:, :3]
-        likelihood = 0
-        points_in_voxels = self.bin_in_voxels(transformed_xyz)
-        # TODO: Implement new version of likelihood calculation for interpolated grid
-        for key, val in points_in_voxels.items():
-            if key in self.stats:
-                sigma = self.stats[key]['sigma']
-                sigma_inv = np.linalg.inv(sigma)
-                # sigma_inv_det = np.linalg.det(sigma_inv)
-                # normal_factor = 1e-8
-                diff = np.atleast_2d(val - self.stats[key]['mu'])  # It's a coincidence that the dimensions work out
-                # likelihood += (sigma_inv_det*normal_factor)*np.sum(np.exp(-0.5*np.diag(np.matmul(np.matmul(diff, sigma_inv), diff.T))))
-                likelihood += np.sum(np.exp(-0.5 * np.diag(np.matmul(np.matmul(diff, sigma_inv), diff.T))))
+        neighbours = self.find_neighbours(transformed_xyz)
+        N = transformed_xyz.shape[0]
+        vect_nearby_init = np.array(np.hsplit(neighbours, 8))
+        vert_stack = np.reshape(vect_nearby_init, [N*8, 3])
+        vert_idx = self.pairing_cent2int(vert_stack)
+        vect_nearby_idx = np.reshape(vert_idx.T, [8, N]).T
+        vect_mus = np.empty([8, N, 3, 1])
+        vect_inv_sigmas = 100*np.ones([8, N, 3, 3])
+        for key in self.stats:
+            indices = vect_nearby_idx == self.stats[key]['idx']
+            mean = self.stats[key]['mu']
+            inv_sigma = np.linalg.inv(self.stats[key]['sigma'])
+            vect_mus[indices.T, :, 0] = mean
+            vect_inv_sigmas[indices.T, :, :] = inv_sigma
+        diff = np.empty_like(vect_mus)
+        diff[:, :, :, 0] = vect_mus[:, :, :, 0] - transformed_xyz[:N, :]
+        diff_transpose = np.transpose(diff, [0, 1, 3, 2])
+        lkds = np.exp(-np.matmul(np.matmul(diff_transpose, vect_inv_sigmas), diff))[:, :, 0, 0]
+        weights = self.find_interp_weights(transformed_xyz, neighbours)[:, :N]
+        wgt_lkd = weights*lkds
+        likelihood = np.sum(wgt_lkd)
         return likelihood
-        return None
+
+    def find_likelihood_non_vect(self, transformed_pc):
+        transformed_xyz = transformed_pc[:, :3]
+        neighbours = self.find_neighbours(transformed_xyz)
+        N = transformed_xyz.shape[0]
+        non_vect_lkd = 0
+        for idx in range(N):
+            # Here,iterate over each point,find its neighbours,find their weights and likelihoods,then add
+            pt = transformed_xyz[idx, :]
+            pt_neigh = neighbours[idx, :]
+            pt_neigh = np.reshape(pt_neigh, [8, 3])
+            x = np.unique(pt_neigh[:, 0])
+            y = np.unique(pt_neigh[:, 1])
+            z = np.unique(pt_neigh[:, 2])
+            mesh_x, mesh_y, mesh_z = np.meshgrid(x, y, z, sparse=False, indexing='xy')
+            # print('Breakpointintheloop')
+            # Setvaluesatthecenterofeachvoxelasthelikelihoodfromthatvoxel.Theninterpolatetherest
+            loop_toc = [nidx for nidx in itertools.product([0, 1], repeat=3)]
+            vals = np.zeros([2, 2, 2])
+            for neigh_idx in range(8):
+                nidx = loop_toc[neigh_idx]
+                # print('nidxis:',nidx)
+                key = tuple([mesh_x[nidx], mesh_y[nidx], mesh_z[nidx]])
+                pt_neigh[neigh_idx, :] = np.array(key)
+                # print('Testingkey:',key)
+                if key in self.stats:
+                    # print('keyisinselfstats')
+                    diff = np.atleast_2d(pt - self.stats[key]['mu'])  # It's a coincidence that the dimensions work out
+                    sigma_inv = np.linalg.inv(self.stats[key]['sigma'])
+                    vals[nidx] = np.sum(np.exp(-0.5 * np.diag(np.matmul(np.matmul(diff, sigma_inv), diff.T))))
+                else:
+                    vals[nidx] = 0
+            interp_lkd = RGI((x, y, z), vals)
+            try:
+                pt_lkd = interp_lkd(pt)[0]
+            except ValueError:
+                pt_lkd = 0
+            non_vect_lkd += pt_lkd
+            # print("Break point in loop")
+        return non_vect_lkd
 
 
 def ndt_approx(ref_pointcloud, horiz_grid_size=0.5, vert_grid_size=0.5, type='overlapping'):
@@ -417,7 +596,6 @@ def ndt_approx(ref_pointcloud, horiz_grid_size=0.5, vert_grid_size=0.5, type='ov
     :param type: Input to control overlap, and type of objective function used for calculation
     :return: ndt_cloud: NDT approximated cloud for the given point cloud and grid size
     """
-    # TODO: Add option for type of NDTCloud to be defined: naive, overlapping or interpolated
     if ref_pointcloud.shape[1] == 4:
         ref_pointcloud = ref_pointcloud[:, :3]
     # Extract the size of the grid
@@ -431,7 +609,6 @@ def ndt_approx(ref_pointcloud, horiz_grid_size=0.5, vert_grid_size=0.5, type='ov
     elif type == 'nooverlap':
         ndt_cloud = NDTCloudNoOverLap(xlim, ylim, zlim, input_horiz_grid_size=horiz_grid_size,
                                       input_vert_grid_size=vert_grid_size)
-        # TODO: Investigate memory issues in nooverlap implementation
     elif type == 'interpolate':
         ndt_cloud = NDTCloudInterpolated(xlim, ylim, zlim, input_horiz_grid_size=horiz_grid_size,
                                          input_vert_grid_size=vert_grid_size)
@@ -449,8 +626,9 @@ def display_ndt_cloud(ndt_cloud, point_density = 0.1):
     :param ndt_cloud: NDT point cloud approximation
     :return: None
     """
-    # TODO: Clean up and plot with shading a function of voxel integrity
     points_to_plot, pt_integrity = ndt_cloud.display(plot_density=point_density)
+    # TODO: Check if the following shading attempt works
+    pt_integrity = (np.max(pt_integrity) - pt_integrity)/(np.max(pt_integrity) - np.min(pt_integrity))
     ndt_viewer = pptk.viewer(points_to_plot, pt_integrity)
     ndt_viewer.color_map('hot')
     ndt_viewer.set(lookat=[0.0, 0.0, 0.0])
@@ -467,3 +645,6 @@ def find_pc_limits(pointcloud):
     ylim = np.max(np.abs(pointcloud[:, 1]))
     zlim = np.max(np.abs(pointcloud[:, 2]))
     return xlim, ylim, zlim
+
+
+
