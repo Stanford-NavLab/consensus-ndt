@@ -16,235 +16,50 @@ from matplotlib import pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import data_utils
 import lidar_mods
-# TODO: Change this file to be implementation for both server and laptop versions
 
 
 def main():
-    # TODO: Move main implementations to this function.
-    # TODO: Move all other functions to demo_results or function_tests
+
+    run_mode = 'server'
+    total_iters = 30
+    iter1 = 15
+    iter2 = 15
+
+    pcs = data_utils.load_uiuc_pcs(0, 10, mode=run_mode)
+
+    assert(total_iters == iter1 + iter2)
+
+    integrity_filters = np.array([0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9])
+    ref_lidar = pcs[0]
+    ref_ndt = ndt.ndt_approx(ref_lidar)
+    perturb = np.array([0.5, 0.5, 0., 0., 0., 0.])
+    trans_pc = utils.transform_pc(perturb, ref_lidar)
+    ground_truth = utils.invert_odom_transfer(perturb)
+    error_consensus = np.zeros([np.size(integrity_filters), 1])
+    time_consensus = np.zeros_like(error_consensus)
+    for idx, filter in enumerate(integrity_filters):
+        tic = time.time()
+        test_odom = odometry.odometry(ref_ndt, trans_pc, max_iter_pre=iter1, max_iter_post=iter2,
+                                      integrity_filter=filter)
+        toc = time.time()
+        error_consensus[idx] = np.linalg.norm(ground_truth - test_odom)
+        time_consensus[idx] = toc - tic
+    tic = time.time()
+    new_odom = odometry.odometry(ref_ndt, trans_pc, max_iter_pre=total_iters, max_iter_post=0)
+    toc = time.time()
+    error_vanilla = np.linalg.norm(ground_truth - new_odom)
+    time_vanilla = toc - tic
+    # Save error and time values
+    print('The vanilla run error is ', error_vanilla)
+    print('The vanilla time taken is', time_vanilla)
+
+    print('The consensus run errors are ', error_consensus)
+    print('The consensus run times are ', time_consensus)
+    print('The integrity filter values are ', integrity_filters)
+
+
 
     return 0
 
 
-def fault_consensus():
-    kitti_pcs = data_utils.load_kitti_pcs(0, 60, pc_mode='server')
-    kitti_ground_truth = data_utils.kitti_sequence_poses(0, 60, seq_input_mode='server')
-    pc_index = np.array([5, 30, 50])
-    delta_r = np.array([0, 0.1, 0.2, 0.3, 0.4, 0.5, 1.0, 2.0, 2.5, 5.0, 10.0])
-    for idx in pc_index:
-        for cand_r in delta_r:
-            #print(len(kitti_pcs))
-            #print(len(kitti_ground_truth))
-            prev_pc = kitti_pcs[idx]
-            curr_pc = kitti_pcs[idx+1]
-            #print('Calculating NDT approximation')
-            prev_ndt = ndt.ndt_approx(prev_pc, horiz_grid_size=1.0, vert_grid_size=1.0)
-            inv_odom = utils.invert_odom_transfer(kitti_ground_truth[idx + 1])
-            #print('Transforming point cloud by ground truth')
-            trans_pc = utils.transform_pc(inv_odom, curr_pc)
-            prev_ndt.find_integrity(trans_pc)
-            prev_ndt.filter_voxels_integrity()
-            #print('Modifying the transformed point cloud with the additive laser bias')
-            lidar_mod_trans_pc = lidar_mods.modify_ranging(trans_pc, cand_r)
-            #print('Calculating integrity of biased point cloud')
-            Cm, _ = prev_ndt.find_integrity(lidar_mod_trans_pc)
-            print('For candidate number ', idx, 'and ranging error ', cand_r, 'C_m is ', Cm)
-            #print('Plotting both point clouds')
-            #diagnostics.plot_consec_pc(prev_pc, lidar_mod_trans_pc)
-    return None
-
-
-def plot_cv():
-    kitti_pcs = data_utils.load_kitti_pcs(0, 60, pc_mode='laptop')
-    kitti_ground_truth = data_utils.kitti_sequence_poses(0, 60, seq_input_mode='laptop')
-    pc_index = np.array([0])
-    idx = pc_index[0]
-    prev_pc = kitti_pcs[idx]
-    curr_pc = kitti_pcs[idx + 1]
-    print('NDT Approximation')
-    prev_ndt = ndt.ndt_approx(prev_pc, horiz_grid_size=1.0, vert_grid_size=1.0)
-    inv_odom = utils.invert_odom_transfer(kitti_ground_truth[idx + 1])
-    trans_pc = utils.transform_pc(inv_odom, curr_pc)
-    print('Displaying original point cloud')
-    view_new = pptk.viewer(prev_pc)
-    view_new.set(lookat=[0.0, 0.0, 0.0])
-    print('Finding integrity')
-    prev_ndt.find_integrity(trans_pc)
-    print('Displaying integrity filtered NDT')
-    ndt.display_ndt_cloud(prev_ndt, point_density=2)
-    print('Plotting consecutive point clouds')
-    diagnostics.plot_consec_pc(prev_pc, trans_pc)
-    return None
-
-
-def consensus_optimization():
-    uiuc_pcs = data_utils.load_uiuc_pcs(500, 550, diff=1, mode='server')
-    ndt_odom = np.zeros([50, 6])
-    icp_odom = np.zeros([50, 6])
-    consensus_odom = np.zeros([50, 6])
-    cand_transform = np.array([0.3, 0.3, 0.001, 0.25, 0.25, 0.5])
-    for idx in range(0, 50):
-        t0 = time.time()
-        print('Loading point cloud number: ', idx)
-        curr_pc = uiuc_pcs[idx]
-        trans_pc = utils.transform_pc(cand_transform, curr_pc)
-        trans_ndt = ndt.ndt_approx(trans_pc)
-        print('Calculating consensus odometry:', idx)
-        curr_con_odom_inv = odometry.consensus_odometry(trans_ndt, curr_pc)
-        print('Calculating traditional odometry:', idx)
-        curr_ndt_odom_inv = odometry.odometry(trans_ndt, curr_pc)
-        curr_icp_odom = diagnostics.ind_lidar_odom(curr_pc, trans_pc)
-        print('NDT ODOMETRY: ', curr_ndt_odom_inv)
-        print('ICP ODOMETRY: ', curr_icp_odom)
-        print('Consensus ODOMETRY: ', curr_con_odom_inv)
-        ndt_odom[idx, :] = utils.invert_odom_transfer(curr_ndt_odom_inv)
-        icp_odom[idx, :] = curr_icp_odom
-        consensus_odom[idx, :] = utils.invert_odom_transfer(curr_con_odom_inv)
-        print('PC: ', idx, 'Run Time: ', time.time() - t0)
-    np.save('saved_ndt_odom', ndt_odom)
-    np.save('saved_icp_odom', icp_odom)
-    np.save('saved_con_odom', consensus_odom)
-    print(np.mean(ndt_odom - cand_transform, axis=1))
-    print(np.mean(consensus_odom - cand_transform, axis=1))
-    print(np.mean(icp_odom - cand_transform, axis=1))
-    return None
-
-
-def old_run():
-    # TODO: Clean up this file and break into functions
-    folder_location = '/home/kanhere2/ion-gnss-19/uiuc_dataset/'
-    filename = 'pc_'
-    ext = '.csv'
-
-    icp_odom = np.load('saved_icp_odom.npy')
-    icp_odom = -icp_odom
-    ndt_odom = np.load('saved_ndt_odom.npy')
-    diff_ndt = np.zeros_like(ndt_odom)
-    diff_icp = np.zeros_like(icp_odom)
-    cand_transform = np.array([0.3, 0.3, 0.001, 0.25, 0.25, 0.5])
-    for i in range(icp_odom.shape[0]):
-        diff_ndt[i, :] = -ndt_odom[i, :] - cand_transform
-        diff_icp[i, :] = icp_odom[i, :] - cand_transform
-    print(np.mean(np.abs(diff_ndt), axis=0))
-    print(np.mean(np.abs(diff_icp), axis=0))
-    """
-    test = np.loadtxt(folder_location+filename+str(676)+ext, delimiter=',')
-    test2 = np.loadtxt(folder_location+filename+str(675)+ext, delimiter=',')
-    pptk.viewer(test)
-    pptk.viewer(test2)
-    test_cloud = ndt.ndt_approx(test)
-    ndt.display_ndt_cloud(test_cloud)
-    test_cloud2 = ndt.ndt_approx(test2)
-    ndt.display_ndt_cloud(test_cloud2)
-    result_odom = odometry.odometry(test_cloud2, test)
-    update_points = test_cloud2.points_in_filled_voxels(test)
-    pptk.viewer(update_points)
-    ndt.display_ndt_cloud(test_cloud2)
-    result_pc = utils.transform_pc(utils.invert_odom_transfer(result_odom), update_points)
-    test_cloud2 = ndt.ndt_approx(test2)
-    print(test_cloud2.find_integrity(result_pc))
-    print(test_cloud2.find_integrity(test))
-    """
-    """
-    first_idx = 500
-    last_idx = 675
-    num_run = last_idx - first_idx
-    ndt_odom = np.zeros([num_run, 6])
-    icp_odom = np.zeros([num_run, 6])
-    cand_transform = np.array([0.3, 0.3, 0.001, 0.25, 0.25, 0.5])
-    for idx in range(first_idx, last_idx):
-        t0 = time.time()
-        print('Loading point cloud number: ', idx)
-        curr_pc = np.loadtxt(folder_location+filename+str(idx)+ext, delimiter=',')
-        trans_pc = utils.transform_pc(cand_transform, curr_pc)
-        trans_ndt = ndt.ndt_approx(trans_pc)
-        print('Calculating odometry:', idx)
-        curr_ndt_odom_inv = odometry.odometry(trans_ndt, curr_pc)
-        curr_icp_odom = diagnostics.ind_lidar_odom(curr_pc, trans_pc)
-        print('NDT ODOMETRY: ', curr_ndt_odom_inv)
-        print('ICP ODOMETRY: ', curr_icp_odom)
-        ndt_odom[idx - first_idx, :] = utils.invert_odom_transfer(curr_ndt_odom_inv)
-        icp_odom[idx - first_idx, :] = curr_icp_odom
-        print('PC: ', idx, 'Run Time: ', time.time() - t0)
-    np.save('saved_ndt_odom', ndt_odom)
-    np.save('saved_icp_odom', icp_odom)
-    """
-    """
-    for idx in range(first_idx, last_idx):
-        t0 = time.time()
-        print('Loading point cloud number: ', idx)
-        curr_pc = np.loadtxt(folder_location+filename+str(idx)+ext, delimiter=',')
-        prev_ndt = ndt.ndt_approx(prev_pc)
-        print('Calculating odometry:', idx)
-        curr_ndt_odom_inv = odometry.odometry(prev_ndt, curr_pc)
-        N1 = prev_pc.shape[0]
-        N2 = curr_pc.shape[0]
-        if N1 <= N2:
-            curr_icp_odom = diagnostics.ind_lidar_odom(curr_pc[:N1, :], prev_pc)
-        else:
-            curr_icp_odom = diagnostics.ind_lidar_odom(curr_pc, prev_pc[:N2, :])
-        ndt_odom[idx - first_idx, :] = utils.invert_odom_transfer(curr_ndt_odom_inv)
-        icp_odom[idx - first_idx, :] = curr_icp_odom
-        state = utils.combine_odometry(state, ndt_odom[idx - first_idx, :])
-        update_points = prev_ndt.points_in_filled_voxels(curr_pc)
-        trans_update_points = utils.transform_pc(state, update_points)
-        map_ndt.update_cloud(trans_update_points)
-        prev_pc = curr_pc
-        print('PC: ', idx, 'Run Time: ', time.time() - t0)
-    np.save('saved_ndt_odom', ndt_odom)
-    np.save('saved_icp_odom', icp_odom)
-    ndt.display_ndt_cloud(map_ndt)
-    """
-    """
-    ndt_odom = np.load('saved_ndt_odom_4.npy')
-    icp_odom = np.load('saved_icp_odom_4.npy')
-    N = ndt_odom.shape[0]
-    total_ndt_odom = np.zeros_like(ndt_odom)
-    total_icp_odom = np.zeros_like(icp_odom)
-    for i in range(1, N):
-        total_ndt_odom[i, :] = utils.combine_odometry(total_ndt_odom[i-1, :], ndt_odom[i, :])
-        total_icp_odom[i, :] = utils.combine_odometry(total_icp_odom[i-1, :], icp_odom[i, :])
-    print(np.mean(np.abs(total_ndt_odom - total_icp_odom)))
-    print(np.mean(np.abs(ndt_odom - icp_odom)))
-    plt.interactive(False)
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    ax.scatter(total_ndt_odom[:, 0], total_ndt_odom[:, 1], total_ndt_odom[:, 2], s=4)
-    #ax.scatter(total_icp_odom[:, 0], total_icp_odom[:, 1], total_icp_odom[:, 2], s=4)
-    plt.show()
-    """
-    return None
-
-
-def presentation_run():
-    # Extract data for run
-    kitti_pcs = data_utils.load_kitti_pcs(0, 60, pc_mode='server')
-    # Generating plots for localization consensus metric
-    prev_pc = kitti_pcs[0]
-    test_pc = kitti_pcs[1]
-    num_test = 100
-    test_axis = 0
-    Cm = np.zeros(num_test)
-    delta_poses = np.linspace(0, 5, num_test)
-    ground_truths = data_utils.kitti_sequence_poses(0, 60, seq_input_mode='server')
-    true_pose = ground_truths[1]
-    inv_truth = utils.invert_odom_transfer(true_pose)
-    for idx in range(num_test):
-        prev_ndt = ndt.ndt_approx(prev_pc, horiz_grid_size=0.5, vert_grid_size=0.5)
-        true_trans_pc = utils.transform_pc(inv_truth, test_pc)
-        prev_ndt.find_integrity(true_trans_pc)
-        prev_ndt.filter_voxels_integrity(integrity_limit=0.7)
-        new_pose = true_pose
-        new_pose[test_axis] += delta_poses[idx]
-        inv_odom = utils.invert_odom_transfer(new_pose)
-        trans_pc = utils.transform_pc(inv_odom, test_pc)
-        Cm[idx] = prev_ndt.find_integrity(trans_pc)
-    plt.figure()
-    plt.plot(delta_poses, Cm)
-    plt.show()
-    return None
-
-
-#fault_consensus()
-#consensus_optimization()
-presentation_run()
+main()
