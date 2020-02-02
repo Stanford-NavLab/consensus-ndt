@@ -100,7 +100,7 @@ class NDTCloudBase:
         # Used an array over a tuple as there is a small possibility that the coordinates might change
         ref_points = np.array(ref_pointcloud[:, :3])  # to remove intensity if it has been passed accidentally
         grid_size = np.array([self.horiz_grid_size, self.horiz_grid_size, self.vert_grid_size])
-        #tol = 1.0e-7  # the maximum translation (with 3 safety margin)caused by a rotation of 1.45e-8 degrees
+        # tol = 1.0e-7  # the maximum translation (with 3 safety margin)caused by a rotation of 1.45e-8 degrees
         number_row = np.shape(self.first_center)[0]
         points_repeated = np.tile(ref_points, (number_row, 1))
         N = ref_points.shape[0]
@@ -116,7 +116,7 @@ class NDTCloudBase:
             voxel_centers[i*N:(i+1)*N, :] = np.multiply(np.sign(ref_points), np.abs(pre_voxel_center) -
                                                         np.sign(ref_points)*np.broadcast_to(self.first_center[i, :],
                                                                                             (N, 3)))
-            # Modification of multiplying by a sign in the center term seems to have fixed an issue with negative coords\
+            # Modification of multiplying by a sign in the center term seems to have fixed an issue with negative coords
         return points_repeated, voxel_centers
 
     def bin_in_voxels(self, points_to_bin):
@@ -407,6 +407,23 @@ class NDTCloudBase:
         assert(np.size(unique_voxels) == self.max_no_voxels)
         return None
 
+    def prune_pc(self, pc):
+        pruned_pc = np.zeros([0, 3])
+        center_dict = self.bin_in_voxels(pc)
+        keys = np.zeros([0, 3])
+        binned_keys = np.zeros([0, 3])
+        original_keys = np.zeros([0, 3])
+        for key in self.stats:
+            original_keys = np.vstack((original_keys, key))
+        for key in center_dict:
+            binned_keys = np.vstack((binned_keys, key))
+            if key in self.stats:
+                keys = np.vstack((keys, key))
+                pruned_pc = np.vstack((pruned_pc, center_dict[key]))
+        # This function seems to be working. When recreating the NDT point cloud, extra voxels seem to be occupied but
+        # visually its the same
+        return np.unique(pruned_pc, axis=0)
+
 
 class NDTCloudNoOverLap(NDTCloudBase):
     def __init__(self, xlim, ylim, zlim, input_horiz_grid_size, input_vert_grid_size):
@@ -620,7 +637,7 @@ def ndt_approx(ref_pointcloud, horiz_grid_size=0.5, vert_grid_size=0.5, type='ov
     return ndt_cloud
 
 
-def display_ndt_cloud(ndt_cloud, point_density = 0.1):
+def display_ndt_cloud(ndt_cloud, point_density=0.1):
     """
     Function to display NDT approximation from a collection of NDT clouds
     :param ndt_cloud: NDT point cloud approximation
@@ -645,6 +662,24 @@ def find_pc_limits(pointcloud):
     ylim = np.max(np.abs(pointcloud[:, 1]))
     zlim = np.max(np.abs(pointcloud[:, 2]))
     return xlim, ylim, zlim
+
+
+def multi_scale_ndt_odom(ref_pc, test_pc, scale_vect, filter_cv, test_mode, iters1, iters2):
+    use_ref_pc = np.copy(ref_pc)
+    use_test_pc = np.copy(test_pc)
+    odom = np.zeros([np.size(scale_vect), 6])
+    tic = time.time()
+    for scale_idx, scale in enumerate(scale_vect):
+        ref_ndt = ndt_approx(use_ref_pc, horiz_grid_size=scale, vert_grid_size=scale, type=test_mode)
+        odom[scale_idx, :] = odometry.odometry(ref_ndt, use_test_pc, max_iter_pre=iters1, max_iter_post=iters2,
+                                               integrity_filter=filter_cv)
+        # TODO: Check that the point cloud has been trimmed with low consensus voxels removed
+        use_ref_pc = ref_ndt.prune_pc(ref_pc)
+        use_test_pc = utils.transform_pc(odom[scale_idx, :], test_pc)
+    # Transform the test point cloud by the obtained odometry
+    toc = time.time()
+    # Tested and seems to be working
+    return odom[scale_idx, :], toc - tic, odom
 
 
 
