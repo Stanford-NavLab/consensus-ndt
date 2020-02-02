@@ -337,9 +337,33 @@ def test_prune_pc():
     return None
 
 
+def test_multiscale():
+    pcs = data_utils.load_uiuc_pcs(0, 10)
+    test_odom = np.array([0.3, 0.3, 0.1, 3., 3., 2])
+    print(utils.invert_odom_transfer(test_odom))
+    N = 10000
+    ref_lidar = pcs[0][:N, :3]
+    ref_ndt = ndt.ndt_approx(ref_lidar, horiz_grid_size=1., vert_grid_size=1., type='overlapping')
+    trans_pc = utils.transform_pc(test_odom, ref_lidar)
+    inv_odom_1 = odometry.odometry(ref_ndt, trans_pc)
+    output_odom1 = utils.invert_odom_transfer(inv_odom_1)
+    inv_odom_2, _, all_inv_odom = ndt.multi_scale_ndt_odom(ref_lidar, trans_pc, np.array([1., 0.5]), 0.7, 'overlapping',
+                                                           15, 15)
+    # TODO: Run this test with the newer scales once again
+    output_odom2 = utils.invert_odom_transfer(inv_odom_2)
+    print('Error in first odom is ', np.linalg.norm(test_odom - output_odom1))
+    print(output_odom1)
+    print(inv_odom_1)
+    print('Error in multiscale odom is ', np.linalg.norm(test_odom - output_odom2))
+    print(output_odom2)
+    print(inv_odom_2)
+    return None
+
+
 # verify_interp_lkd()
 # interpolate_likelihood_test()
 # test_interp_weights()
 # demo_hessian_check()
 # hessian_vect_test()
-test_prune_pc()
+# test_prune_pc()
+test_multiscale()
