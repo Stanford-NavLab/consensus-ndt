@@ -61,7 +61,7 @@ def load_uiuc_pcs(start, end, diff=1, mode='laptop'):
         filename = 'pc_'
         ext = '.csv'
     elif mode == 'server':
-        folder_loc = '/home/navlab-admin/consensus-ndt//ion-gnss-19/datasets/uiuc_pointclouds/'
+        folder_loc = '/home/navlab-admin/consensus-ndt/datasets/uiuc_pointclouds/'
         filename = 'pc_'
         ext = '.csv'
     else:
