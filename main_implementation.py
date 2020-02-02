@@ -19,8 +19,8 @@ def main():
     run_no = 1
     plot_fig = True
 
-    #run_mode = 'server'
-    run_mode = 'laptop'
+    run_mode = 'server'
+    #run_mode = 'laptop'
     total_iters = 20
     iter1 = 10
     iter2 = 10
@@ -68,14 +68,14 @@ def main():
             trans_pc = utils.transform_pc(test_odom, ref_pc)
 
             print('Running vanilla multi-scale NDT')
-            vanilla_odom, test_van_time = ndt.multi_scale_ndt_odom(np.copy(ref_pc), np.copy(trans_pc), scale_array, 0.5,
+            vanilla_odom, test_van_time, _ = ndt.multi_scale_ndt_odom(np.copy(ref_pc), np.copy(trans_pc), scale_array, 0.5,
                                                                    test_mode, total_iters, 0)
             #cv is going to be a dummy here
 
             for cv_idx, cv in enumerate(integrity_filters):
                 print('Experiment for C_v:', cv, ' pc number:', pc_idx, 'odometry:', odom_idx)
                 print('Running consensus multi-scale NDT')
-                consensus_odom, test_con_time = ndt.multi_scale_ndt_odom(np.copy(ref_pc), np.copy(trans_pc),
+                consensus_odom, test_con_time, _ = ndt.multi_scale_ndt_odom(np.copy(ref_pc), np.copy(trans_pc),
                                                                          scale_array, cv, test_mode, iter1, iter2)
 
                 print('Computing and storing error and timing values')

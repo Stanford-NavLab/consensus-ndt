@@ -93,8 +93,9 @@ def objective(odometry_vector, ndt_cloud, test_pc):
     global hess_neval
     transformed_pc = utils.transform_pc(odometry_vector, test_pc)
     obj_value = -1 * ndt_cloud.find_likelihood(transformed_pc)
+    #if hess_neval % 10 == 0:
     print('Objective iteration: {:4d}'.format(obj_neval), 'Jacobian iteration: {:4d}'.format(jacob_neval),
-          'Hessian iteration: {:4d}'.format(hess_neval), 'Objective Value: {:10.4f}'.format(obj_value))
+                'Hessian iteration: {:4d}'.format(hess_neval), 'Objective Value: {:10.4f}'.format(obj_value))
     """
     , ' Odometry:',
           ' x: {:2.5f}'.format(odometry_vector[0]), ' y: {:2.5f}'.format(odometry_vector[1]),
