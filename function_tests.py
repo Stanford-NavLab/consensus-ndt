@@ -311,8 +311,35 @@ def hessian_vect_test():
     return None
 
 
+def test_prune_pc():
+    pcs = data_utils.load_kitti_pcs(0, 10)
+    poses = data_utils.kitti_sequence_poses(0, 10)
+
+    ref_lidar = pcs[0][:, :3]
+    test_lidar = pcs[1][:, :3]
+    ref_ndt = ndt.ndt_approx(ref_lidar, horiz_grid_size=1., vert_grid_size=1., type='overlapping')
+    trans_pc = utils.transform_pc(poses[0], test_lidar)
+    ref_ndt.find_integrity(trans_pc)
+    ref_ndt.filter_voxels_integrity()
+    ndt.display_ndt_cloud(ref_ndt)
+    print('The size after filtering is ', len(ref_ndt.stats))
+    print('Pruning point cloud')
+    pruned_pc = ref_ndt.prune_pc(ref_lidar)
+    print('Size of original PC is', np.shape(ref_lidar))
+    print('Size of pruned PC is', np.shape(pruned_pc))
+    print('Generating new NDT cloud')
+    pruned_ndt = ndt.ndt_approx(pruned_pc, horiz_grid_size=1., vert_grid_size=1., type='overlapping')
+    ndt.display_ndt_cloud(pruned_ndt)
+    print('The size after pruning is ', len(pruned_ndt.stats))
+    keys = np.zeros([0, 3])
+    for key in pruned_ndt.stats:
+        keys = np.vstack((keys, key))
+    return None
+
+
 # verify_interp_lkd()
-interpolate_likelihood_test()
+# interpolate_likelihood_test()
 # test_interp_weights()
 # demo_hessian_check()
 # hessian_vect_test()
+test_prune_pc()
