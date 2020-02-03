@@ -21,11 +21,11 @@ def main():
 
     run_mode = 'server'
     #run_mode = 'laptop'
-    total_iters = 20
-    iter1 = 10
-    iter2 = 10
-    num_pcs = 5 #100
-    num_odom_vects = 2 #10
+    total_iters = 20 # 20
+    iter1 = 10 # 10
+    iter2 = 10 # 10
+    num_pcs = 50 #100
+    num_odom_vects = 5 #10
     test_mode = 'overlapping'  # 'nooverlap' 'interpolate'
 
     max_x = 0.4
@@ -42,9 +42,10 @@ def main():
     assert(total_iters == iter1 + iter2)
 
     print('Loading dataset')
-    pcs = data_utils.load_uiuc_pcs(0, num_pcs, mode=run_mode)
+    pcs = data_utils.load_uiuc_pcs(0, num_pcs-1, mode=run_mode)
 
-    integrity_filters = np.array([0.3, 0.4, 0.5, 0.6, 0.7, 0.8])
+    #integrity_filters = np.array([0.3, 0.4, 0.5, 0.6, 0.7, 0.8])
+    integrity_filters = np.array([0.5, 0.8])
     num_int_vals = np.size(integrity_filters)
 
     print('Creating placeholder variables for storing errors')
@@ -58,7 +59,7 @@ def main():
     consensus_rot_error = np.zeros_like(vanilla_rot_error)
 
     for pc_idx, ref_pc in enumerate(pcs):
-        for odom_idx in range(num_int_vals):
+        for odom_idx in range(num_odom_vects):
 
             rand_num = 2*(np.random.rand(6) - 0.5)
             test_odom = odom_limits*rand_num
@@ -67,65 +68,66 @@ def main():
             print('Creating transformed test point cloud')
             trans_pc = utils.transform_pc(test_odom, ref_pc)
 
-            print('Running vanilla multi-scale NDT')
+            print('\nRunning vanilla multi-scale NDT for PC:', pc_idx, 'odometry: ', odom_idx, '\n')
+
             vanilla_odom, test_van_time, _ = ndt.multi_scale_ndt_odom(np.copy(ref_pc), np.copy(trans_pc), scale_array, 0.5,
                                                                    test_mode, total_iters, 0)
             #cv is going to be a dummy here
 
             for cv_idx, cv in enumerate(integrity_filters):
-                print('Experiment for C_v:', cv, ' pc number:', pc_idx, 'odometry:', odom_idx)
+                print('\nExperiment for C_v:', cv, ' pc number:', pc_idx, 'odometry:', odom_idx, '\n')
                 print('Running consensus multi-scale NDT')
                 consensus_odom, test_con_time, _ = ndt.multi_scale_ndt_odom(np.copy(ref_pc), np.copy(trans_pc),
                                                                          scale_array, cv, test_mode, iter1, iter2)
 
                 print('Computing and storing error and timing values')
 
-                vanilla_odom_diff = vanilla_odom - inv_test_odom
-                vanilla_time[:, pc_idx, odom_idx] = test_van_time
-                vanilla_pos_error[:, pc_idx, odom_idx] = np.linalg.norm(vanilla_odom_diff[:3])
-                vanilla_rot_error[:, pc_idx, odom_idx] = np.linalg.norm(vanilla_odom_diff[3:])
-
                 consensus_odom_diff = consensus_odom - inv_test_odom
                 consensus_time[cv_idx, pc_idx, odom_idx] = test_con_time
                 consensus_pos_error[cv_idx, pc_idx, odom_idx] = np.linalg.norm(consensus_odom_diff[:3])
                 consensus_rot_error[cv_idx, pc_idx, odom_idx] = np.linalg.norm(consensus_odom_diff[3:])
 
-    print('Saving computed values')
-    np.save("vanilla_time" + test_mode + str(run_no), vanilla_time)
-    np.save("vanilla_pos_error" + test_mode + str(run_no), vanilla_pos_error)
-    np.save("vanilla_rot_error" + test_mode + str(run_no), vanilla_rot_error)
+            vanilla_odom_diff = vanilla_odom - inv_test_odom
+            vanilla_time[:, pc_idx, odom_idx] = test_van_time
+            vanilla_pos_error[:, pc_idx, odom_idx] = np.linalg.norm(vanilla_odom_diff[:3])
+            vanilla_rot_error[:, pc_idx, odom_idx] = np.linalg.norm(vanilla_odom_diff[3:])
 
-    np.save("consensus_time" + test_mode + str(run_no), consensus_time)
-    np.save("consensus_time" + test_mode + str(run_no), consensus_pos_error)
-    np.save("consensus_time" + test_mode + str(run_no), consensus_rot_error)
+    print('Saving computed values')
+    np.save("vanilla_time_" + test_mode + '_' + str(run_no), vanilla_time)
+    np.save("vanilla_pos_error_" + test_mode + '_' + str(run_no), vanilla_pos_error)
+    np.save("vanilla_rot_error_" + test_mode + '_' + str(run_no), vanilla_rot_error)
+
+    np.save("consensus_time_" + test_mode + '_' + str(run_no), consensus_time)
+    np.save("consensus_pos_error_" + test_mode + '_' + str(run_no), consensus_pos_error)
+    np.save("consensus_rot_error_" + test_mode + '_' + str(run_no), consensus_rot_error)
 
     if plot_fig:
-        # TODO: Check this particular line of code and make sure it's taking the right mean
-        plot_vanilla_time = np.mean(vanilla_time, axis=0)
-        plot_vanilla_pos_error = np.mean(vanilla_pos_error, axis=0)
-        plot_vanilla_rot_error = np.mean(vanilla_rot_error, axis=0)
+        plt.close('all')
+        plot_vanilla_time = utils.plot_averaged(vanilla_time)
+        plot_vanilla_pos_error = utils.plot_averaged(vanilla_pos_error)
+        plot_vanilla_rot_error = utils.plot_averaged(vanilla_rot_error)
 
-        plot_consensus_time = np.mean(consensus_time, axis=0)
-        plot_consensus_pos_error = np.mean(consensus_pos_error, axis=0)
-        plot_consensus_rot_error = np.mean(consensus_rot_error, axis=0)
+        plot_consensus_time = utils.plot_averaged(consensus_time)
+        plot_consensus_pos_error = utils.plot_averaged(consensus_pos_error)
+        plot_consensus_rot_error = utils.plot_averaged(consensus_rot_error)
 
         plt.figure(1)
-        plt.plot(integrity_filters, plot_vanilla_time, label='vanilla')
-        plt.plot(integrity_filters, plot_consensus_time, label='consensus')
+        plt.plot(integrity_filters, plot_vanilla_time, label='Vanilla Timing')
+        plt.plot(integrity_filters, plot_consensus_time, label='Consensus Timing')
         plt.title("Timing comparison")
-        plt.legend(loc="upper left")
+        plt.legend(loc="upper right")
 
         plt.figure(2)
-        plt.plot(integrity_filters, plot_vanilla_pos_error, label='vanilla')
-        plt.plot(integrity_filters, plot_consensus_pos_error, label='consensus')
-        plt.title('Position error comparison')
-        plt.legend(loc="upper left")
+        plt.plot(integrity_filters, plot_vanilla_pos_error, label='Vanilla Position Error')
+        plt.plot(integrity_filters, plot_consensus_pos_error, label='Consensus Position Error')
+        plt.title("Position Error comparison")
+        plt.legend(loc="upper right")
 
         plt.figure(3)
-        plt.plot(integrity_filters, plot_vanilla_rot_error, label='vanilla')
-        plt.plot(integrity_filters, plot_consensus_rot_error, label='consensus')
-        plt.title('Rotation error comparison')
-        plt.legend(loc="upper left")
+        plt.plot(integrity_filters, plot_vanilla_rot_error, label='Vanilla Rotation Error')
+        plt.plot(integrity_filters, plot_consensus_rot_error, label='Consensus Rotation Error')
+        plt.title('Rotation Error comparison')
+        plt.legend(loc="upper right")
 
         plt.show()
 
