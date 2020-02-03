@@ -670,12 +670,17 @@ def multi_scale_ndt_odom(ref_pc, test_pc, scale_vect, filter_cv, test_mode, iter
     odom = np.zeros([np.size(scale_vect), 6])
     tic = time.time()
     for scale_idx, scale in enumerate(scale_vect):
+        #print('DEBUG: Optimizing for voxel size ', scale)
         ref_ndt = ndt_approx(use_ref_pc, horiz_grid_size=scale, vert_grid_size=scale, type=test_mode)
         odom[scale_idx, :] = odometry.odometry(ref_ndt, use_test_pc, max_iter_pre=iters1, max_iter_post=iters2,
                                                integrity_filter=filter_cv)
-        # TODO: Check that the point cloud has been trimmed with low consensus voxels removed
-        use_ref_pc = ref_ndt.prune_pc(ref_pc)
-        use_test_pc = utils.transform_pc(odom[scale_idx, :], test_pc)
+        if len(ref_ndt.stats)!= 0:
+            use_ref_pc = ref_ndt.prune_pc(ref_pc)
+            #print('DEBUG: Size of ref_ndt is ', len(ref_ndt.stats))
+            #print('DEBUG: Size of the pruned point cloud is ', np.shape(use_ref_pc)[0])
+            use_test_pc = utils.transform_pc(odom[scale_idx, :], test_pc)
+        else:
+            break
     # Transform the test point cloud by the obtained odometry
     toc = time.time()
     # Tested and seems to be working
