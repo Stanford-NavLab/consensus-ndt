@@ -30,7 +30,7 @@ class NDTCloudBase:
     A class to store the sparse grid center points, means and covariances for grid points that are full.
     This class will be the de facto default for working with NDT point clouds
     """
-    def __init__(self, xlim, ylim, zlim, input_horiz_grid_size, input_vert_grid_size):
+    def __init__(self, xlim, ylim, zlim, input_horiz_grid_size, input_vert_grid_size, cloud_type):
         """
         A method to initialize a member of the NDTCloud class. When initializing a member of the class, grid limits are
         given along with the grid sizes. Using these values a sparse grid is created and corresponding zero mean and
@@ -59,6 +59,7 @@ class NDTCloudBase:
         self.max_no_points = 0
         self.first_center = np.empty([1, 3])
         self.max_no_voxels = -1
+        self.cloud_type = cloud_type
         # TODO: Check if current displacement from navigation origin is needed
         # Store an estimate of the transformation of the current scan origin to global origin
 
@@ -426,8 +427,9 @@ class NDTCloudBase:
 
 
 class NDTCloudNoOverLap(NDTCloudBase):
-    def __init__(self, xlim, ylim, zlim, input_horiz_grid_size, input_vert_grid_size):
-        super(NDTCloudNoOverLap, self).__init__(xlim, ylim, zlim, input_horiz_grid_size, input_vert_grid_size)
+    def __init__(self, xlim, ylim, zlim, input_horiz_grid_size, input_vert_grid_size, cloud_type):
+        super(NDTCloudNoOverLap, self).__init__(xlim, ylim, zlim, input_horiz_grid_size, input_vert_grid_size
+                                                , cloud_type)
         self.first_center = np.zeros([1, 3])
         first_center_x = np.mod(2 * xlim / self.horiz_grid_size + 1, 2) * self.horiz_grid_size / 2.0
         first_center_y = np.mod(2 * ylim / self.horiz_grid_size + 1, 2) * self.horiz_grid_size / 2.0
@@ -436,8 +438,9 @@ class NDTCloudNoOverLap(NDTCloudBase):
 
 
 class NDTCloudOverLap(NDTCloudBase):
-    def __init__(self, xlim, ylim, zlim, input_horiz_grid_size, input_vert_grid_size):
-        super(NDTCloudOverLap, self).__init__(xlim, ylim, zlim, input_horiz_grid_size, input_vert_grid_size)
+    def __init__(self, xlim, ylim, zlim, input_horiz_grid_size, input_vert_grid_size, cloud_type):
+        super(NDTCloudOverLap, self).__init__(xlim, ylim, zlim, input_horiz_grid_size, input_vert_grid_size
+                                              , cloud_type)
         self.first_center = np.empty([8, 3])
         for i in range(8):
             offset = np.array([np.mod(i, 2), np.mod(np.int(i / 2), 2), np.int(i / 4)])
@@ -448,8 +451,9 @@ class NDTCloudOverLap(NDTCloudBase):
 
 
 class NDTCloudInterpolated(NDTCloudBase):
-    def __init__(self, xlim, ylim, zlim, input_horiz_grid_size, input_vert_grid_size):
-        super(NDTCloudInterpolated, self).__init__(xlim, ylim, zlim, input_horiz_grid_size, input_vert_grid_size)
+    def __init__(self, xlim, ylim, zlim, input_horiz_grid_size, input_vert_grid_size, cloud_type):
+        super(NDTCloudInterpolated, self).__init__(xlim, ylim, zlim, input_horiz_grid_size, input_vert_grid_size
+                                                   , cloud_type)
         self.first_center = np.zeros([1, 3])
         first_center_x = np.mod(2 * xlim / self.horiz_grid_size + 1, 2) * self.horiz_grid_size / 2.0
         first_center_y = np.mod(2 * ylim / self.horiz_grid_size + 1, 2) * self.horiz_grid_size / 2.0
@@ -622,13 +626,13 @@ def ndt_approx(ref_pointcloud, horiz_grid_size=0.5, vert_grid_size=0.5, type='ov
     # Create NDT map for reference grid
     if type == 'overlapping':
         ndt_cloud = NDTCloudOverLap(xlim, ylim, zlim, input_horiz_grid_size=horiz_grid_size,
-                                    input_vert_grid_size=vert_grid_size)
+                                    input_vert_grid_size=vert_grid_size, cloud_type=type)
     elif type == 'nooverlap':
         ndt_cloud = NDTCloudNoOverLap(xlim, ylim, zlim, input_horiz_grid_size=horiz_grid_size,
-                                      input_vert_grid_size=vert_grid_size)
+                                      input_vert_grid_size=vert_grid_size, cloud_type=type)
     elif type == 'interpolate':
         ndt_cloud = NDTCloudInterpolated(xlim, ylim, zlim, input_horiz_grid_size=horiz_grid_size,
-                                         input_vert_grid_size=vert_grid_size)
+                                         input_vert_grid_size=vert_grid_size, cloud_type=type)
     else:
         print('Wrong type of NDT Cloud specified in input. Defaulting to overlapping cloud')
         ndt_cloud = NDTCloudOverLap(xlim, ylim, zlim, input_horiz_grid_size=horiz_grid_size,
