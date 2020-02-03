@@ -116,6 +116,11 @@ def invert_odom_transfer(odom):
     return inverted_odom
 
 
+def plot_averaged(error):
+    assert (error.ndim == 3)
+    return np.mean(np.mean(error, axis=2), axis=1)
+
+
 # Sending these functions to the end of the file as they're deprecated by using transforms3d.py
 """
 def rotation_matrix(angle, axis='z'):
