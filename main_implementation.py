@@ -24,9 +24,9 @@ def main():
     total_iters = 20 # 20
     iter1 = 10 # 10
     iter2 = 10 # 10
-    num_pcs = 50 #100
-    num_odom_vects = 5 #10
-    test_mode = 'overlapping'  # 'nooverlap' 'interpolate'
+    num_pcs = 40 #100
+    num_odom_vects = 4 #10
+    test_mode = 'noverlap'  # 'nooverlap' 'interpolate'
 
     max_x = 0.4
     max_y = 0.4
@@ -44,11 +44,13 @@ def main():
     print('Loading dataset')
     pcs = data_utils.load_uiuc_pcs(0, num_pcs-1, mode=run_mode)
 
-    #integrity_filters = np.array([0.3, 0.4, 0.5, 0.6, 0.7, 0.8])
-    integrity_filters = np.array([0.5, 0.8])
+    integrity_filters = np.array([0.3, 0.4, 0.5, 0.6, 0.7, 0.8])
+    # integrity_filters = np.array([0.5, 0.8])
     num_int_vals = np.size(integrity_filters)
 
     print('Creating placeholder variables for storing errors')
+
+    odom_vectors = np.zeros([num_int_vals, num_pcs, num_odom_vects, 6])
 
     vanilla_time = np.zeros([num_int_vals, num_pcs, num_odom_vects])
     vanilla_pos_error = np.zeros_like(vanilla_time)
@@ -88,18 +90,26 @@ def main():
                 consensus_rot_error[cv_idx, pc_idx, odom_idx] = np.linalg.norm(consensus_odom_diff[3:])
 
             vanilla_odom_diff = vanilla_odom - inv_test_odom
+
+            odom_vectors[:, pc_idx, odom_idx, :] = inv_test_odom
+
             vanilla_time[:, pc_idx, odom_idx] = test_van_time
             vanilla_pos_error[:, pc_idx, odom_idx] = np.linalg.norm(vanilla_odom_diff[:3])
             vanilla_rot_error[:, pc_idx, odom_idx] = np.linalg.norm(vanilla_odom_diff[3:])
 
-    print('Saving computed values')
-    np.save("vanilla_time_" + test_mode + '_' + str(run_no), vanilla_time)
-    np.save("vanilla_pos_error_" + test_mode + '_' + str(run_no), vanilla_pos_error)
-    np.save("vanilla_rot_error_" + test_mode + '_' + str(run_no), vanilla_rot_error)
+    if pc_idx % 10 == 0:
+        print('Saving computed values')
+        np.save('consensus_values_' + test_mode + '_' + str(run_no), integrity_filters)
+        np.save('odometry_vectors' + test_mode + '_' + str(run_no), odom_vectors)
+        np.save("vanilla_time_" + test_mode + '_' + str(run_no), vanilla_time)
+        np.save("vanilla_pos_error_" + test_mode + '_' + str(run_no), vanilla_pos_error)
+        np.save("vanilla_rot_error_" + test_mode + '_' + str(run_no), vanilla_rot_error)
 
-    np.save("consensus_time_" + test_mode + '_' + str(run_no), consensus_time)
-    np.save("consensus_pos_error_" + test_mode + '_' + str(run_no), consensus_pos_error)
-    np.save("consensus_rot_error_" + test_mode + '_' + str(run_no), consensus_rot_error)
+        np.save("consensus_time_" + test_mode + '_' + str(run_no), consensus_time)
+        np.save("consensus_pos_error_" + test_mode + '_' + str(run_no), consensus_pos_error)
+        np.save("consensus_rot_error_" + test_mode + '_' + str(run_no), consensus_rot_error)
+
+
 
     if plot_fig:
         plt.close('all')
