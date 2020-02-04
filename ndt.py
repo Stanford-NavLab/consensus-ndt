@@ -636,7 +636,7 @@ def ndt_approx(ref_pointcloud, horiz_grid_size=0.5, vert_grid_size=0.5, type='ov
     else:
         print('Wrong type of NDT Cloud specified in input. Defaulting to overlapping cloud')
         ndt_cloud = NDTCloudOverLap(xlim, ylim, zlim, input_horiz_grid_size=horiz_grid_size,
-                                    input_vert_grid_size=vert_grid_size)
+                                    input_vert_grid_size=vert_grid_size, cloud_type='overlapping')
     ndt_cloud.update_cloud(ref_pointcloud)
     return ndt_cloud
 
