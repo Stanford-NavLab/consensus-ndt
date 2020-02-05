@@ -16,7 +16,7 @@ def main():
 
     print('Setting model parameters')
 
-    run_no = 2
+    run_no = 3
     plot_fig = True
 
     run_mode = 'server'
@@ -123,19 +123,19 @@ def main():
         plot_consensus_pos_error = utils.plot_averaged(consensus_pos_error)
         plot_consensus_rot_error = utils.plot_averaged(consensus_rot_error)
 
-        plt.figure(1)
+        plt.figure()
         plt.plot(integrity_filters, plot_vanilla_time, label='Vanilla Timing')
         plt.plot(integrity_filters, plot_consensus_time, label='Consensus Timing')
         plt.title("Timing comparison")
         plt.legend(loc="upper right")
 
-        plt.figure(2)
+        plt.figure()
         plt.plot(integrity_filters, plot_vanilla_pos_error, label='Vanilla Position Error')
         plt.plot(integrity_filters, plot_consensus_pos_error, label='Consensus Position Error')
         plt.title("Position Error comparison")
         plt.legend(loc="upper right")
 
-        plt.figure(3)
+        plt.figure()
         plt.plot(integrity_filters, plot_vanilla_rot_error, label='Vanilla Rotation Error')
         plt.plot(integrity_filters, plot_consensus_rot_error, label='Consensus Rotation Error')
         plt.title('Rotation Error comparison')
