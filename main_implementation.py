@@ -16,7 +16,7 @@ def main():
 
     print('Setting model parameters')
 
-    run_no = 1
+    run_no = 2
     plot_fig = True
 
     run_mode = 'server'
@@ -26,7 +26,7 @@ def main():
     iter2 = 10 # 10
     num_pcs = 40 #100
     num_odom_vects = 4 #10
-    test_mode = 'noverlap'  # 'nooverlap' 'interpolate'
+    test_mode = 'overlapping'  # 'nooverlap' 'interpolate'
 
     max_x = 0.4
     max_y = 0.4
@@ -37,7 +37,9 @@ def main():
 
     odom_limits = np.array([max_x, max_y, max_z, max_phi, max_theta, max_psi])
 
-    scale_array = np.array([2., 1., 0.5])
+    #scale_array = np.array([2., 1., 0.5])
+    #scale_array = np.array([2., 1.])
+    scale_array = np.array([1.])
 
     assert(total_iters == iter1 + iter2)
 
@@ -97,17 +99,17 @@ def main():
             vanilla_pos_error[:, pc_idx, odom_idx] = np.linalg.norm(vanilla_odom_diff[:3])
             vanilla_rot_error[:, pc_idx, odom_idx] = np.linalg.norm(vanilla_odom_diff[3:])
 
-    if pc_idx % 10 == 0:
-        print('Saving computed values')
-        np.save('consensus_values_' + test_mode + '_' + str(run_no), integrity_filters)
-        np.save('odometry_vectors' + test_mode + '_' + str(run_no), odom_vectors)
-        np.save("vanilla_time_" + test_mode + '_' + str(run_no), vanilla_time)
-        np.save("vanilla_pos_error_" + test_mode + '_' + str(run_no), vanilla_pos_error)
-        np.save("vanilla_rot_error_" + test_mode + '_' + str(run_no), vanilla_rot_error)
+        if pc_idx % 10 == 0:
+            print('Saving computed values')
+            np.save('consensus_values_' + test_mode + '_' + str(run_no), integrity_filters)
+            np.save('odometry_vectors' + test_mode + '_' + str(run_no), odom_vectors)
+            np.save("vanilla_time_" + test_mode + '_' + str(run_no), vanilla_time)
+            np.save("vanilla_pos_error_" + test_mode + '_' + str(run_no), vanilla_pos_error)
+            np.save("vanilla_rot_error_" + test_mode + '_' + str(run_no), vanilla_rot_error)
 
-        np.save("consensus_time_" + test_mode + '_' + str(run_no), consensus_time)
-        np.save("consensus_pos_error_" + test_mode + '_' + str(run_no), consensus_pos_error)
-        np.save("consensus_rot_error_" + test_mode + '_' + str(run_no), consensus_rot_error)
+            np.save("consensus_time_" + test_mode + '_' + str(run_no), consensus_time)
+            np.save("consensus_pos_error_" + test_mode + '_' + str(run_no), consensus_pos_error)
+            np.save("consensus_rot_error_" + test_mode + '_' + str(run_no), consensus_rot_error)
 
 
 
