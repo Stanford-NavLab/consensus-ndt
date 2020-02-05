@@ -38,8 +38,8 @@ def main():
     odom_limits = np.array([max_x, max_y, max_z, max_phi, max_theta, max_psi])
 
     #scale_array = np.array([2., 1., 0.5])
-    #scale_array = np.array([2., 1.])
-    scale_array = np.array([1.])
+    scale_array = np.array([2., 1.])
+    #scale_array = np.array([1.])
 
     assert(total_iters == iter1 + iter2)
 
@@ -142,6 +142,17 @@ def main():
         plt.legend(loc="upper right")
 
         plt.show()
+
+    print('Saving computed values')
+    np.save('consensus_values_' + test_mode + '_' + str(run_no), integrity_filters)
+    np.save('odometry_vectors' + test_mode + '_' + str(run_no), odom_vectors)
+    np.save("vanilla_time_" + test_mode + '_' + str(run_no), vanilla_time)
+    np.save("vanilla_pos_error_" + test_mode + '_' + str(run_no), vanilla_pos_error)
+    np.save("vanilla_rot_error_" + test_mode + '_' + str(run_no), vanilla_rot_error)
+
+    np.save("consensus_time_" + test_mode + '_' + str(run_no), consensus_time)
+    np.save("consensus_pos_error_" + test_mode + '_' + str(run_no), consensus_pos_error)
+    np.save("consensus_rot_error_" + test_mode + '_' + str(run_no), consensus_rot_error)
 
     return 0
 
