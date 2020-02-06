@@ -8,7 +8,7 @@ import numpy as np
 import pykitti
 import pptk
 import transforms3d
-
+import odometry
 import data_utils
 import integrity
 import time
@@ -331,7 +331,7 @@ def vox_con():
     return None
 
 
-def test_mapping_func():
+def mapping_func_test():
     data = extract_data()
     sequence_ground_truth = data_utils.kitti_sequence_poses(data)
     mapping_ground_truth = np.zeros_like(sequence_ground_truth)
@@ -395,7 +395,7 @@ def find_pc_DOP(pointcloud):
     return pc_DOP
 
 
-def test_data_loader():
+def data_loader_test():
     uiuc_pcs = data_utils.load_uiuc_pcs(0, 10, 1)
     #for pc in uiuc_pcs:
         #print(np.shape(pc))
@@ -435,6 +435,17 @@ def ndt_resolution():
     return None
 
 
+def ideating_interp_jacobian():
+    kitti_data = data_utils.load_uiuc_pcs(0, 10, 1)
+    pc = kitti_data[0]
+    N = 2
+    ref_pc = pc[:N, :]
+    ref_ndt = ndt.ndt_approx(ref_pc, horiz_grid_size=1., vert_grid_size=1., type='interpolate')
+    odom = np.zeros(6)
+    odometry.interp_jacobian(odom, ref_ndt, ref_pc)
+    return None
+
+
 
 
 # vox_con()
@@ -448,4 +459,5 @@ def ndt_resolution():
 # paper_vox_con_2()
 # c_v_presentation_plot()
 # ndt_resolution()
-test_new_ndt()
+# test_new_ndt()
+ideating_interp_jacobian()
