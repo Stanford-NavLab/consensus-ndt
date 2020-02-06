@@ -237,19 +237,20 @@ def test_interp_weights():
     return None
 
 
-def jacobian_vect_test():
+def jacobian_vect_test(ndt_type='overlapping'):
     # Verified for test case of same point cloud at origin
     pcs = data_utils.load_kitti_pcs(0, 10)
     ref_lidar = pcs[0]
     N = 10000
     cand_pos = np.array([0., 0., 0., 0., 0., 0.])
-    ref_ndt = ndt.ndt_approx(ref_lidar, horiz_grid_size=1., vert_grid_size=1., type='overlapping')
-
-    _, jacob_error_norm = diagnostics.check_gradient(odometry.objective, odometry.jacobian, ref_ndt, ref_lidar[:N, :],
-                                                     cand_pos)
-    _, jacob_vect_error_norm = diagnostics.check_gradient(odometry.objective, odometry.jacobian_vect, ref_ndt,
-                                                          ref_lidar[:N, :], cand_pos)
-    print('The jacobian error is ', jacob_error_norm)
+    ref_ndt = ndt.ndt_approx(ref_lidar, horiz_grid_size=1., vert_grid_size=1., type=ndt_type)
+    if ndt_type == 'interpolate':
+        jacob_error, jacob_vect_error_norm = diagnostics.check_gradient(odometry.interp_objective,
+                                                                        odometry.interp_jacobian, ref_ndt,
+                                                                        ref_lidar[:N, :], cand_pos, print_output=True)
+    else:
+        _, jacob_vect_error_norm = diagnostics.check_gradient(odometry.objective, odometry.jacobian_vect, ref_ndt,
+                                                              ref_lidar[:N, :], cand_pos, print_output=True)
     print('The vectorized jacobian error is', jacob_vect_error_norm)
     return None
 
@@ -285,14 +286,14 @@ def demo_hessian_check(odom=np.array([2., 3., 4., 5., 6., 7.]), print_output=Tru
     return None
 
 
-def hessian_vect_test():
+def hessian_vect_test(ndt_type='overlapping'):
     pcs = data_utils.load_kitti_pcs(0, 10)
     poses = data_utils.kitti_sequence_poses(0, 10, diff=1)
     ref_lidar = pcs[0]
     test_lidar = pcs[1]
     N = 10000
     cand_pos = np.array([0., 0., 0., 0., 0., 0.])
-    ref_ndt = ndt.ndt_approx(ref_lidar, horiz_grid_size=1., vert_grid_size=1., type='overlapping')
+    ref_ndt = ndt.ndt_approx(ref_lidar, horiz_grid_size=1., vert_grid_size=1., type=ndt_type)
     tic = time.time()
     original_hessian = odometry.hessian(cand_pos, ref_ndt, ref_lidar[:N, :])
     print('Time taken to run original Hessian is ', time.time() - tic)
@@ -301,17 +302,17 @@ def hessian_vect_test():
     print('Time taken to run new and surprisingly fancy Hessian is ', time.time() - tic)
 
     # Checking the Hessian: Check the row of the Hessian that corresponds to each jacobian element (using grad check)
-    #_, hess_error_norm = diagnostics.check_hessian(odometry.jacobian_vect, odometry.hessian, ref_ndt, ref_lidar[:N, :],
-    #                                               cand_pos)
+    _, hess_error_norm = diagnostics.check_hessian(odometry.jacobian_vect, odometry.hessian, ref_ndt, ref_lidar[:N, :],
+                                                   cand_pos)
     _, hess_vect_error_norm = diagnostics.check_hessian(odometry.jacobian_vect, odometry.hessian_vect, ref_ndt,
                                                         ref_lidar[:N, :], cand_pos)
-    #print('The Hessian error is ', hess_error_norm)
+    print('The Hessian error is ', hess_error_norm)
     print('The vectorized Hessian error is', hess_vect_error_norm)
 
     return None
 
 
-def test_prune_pc():
+def prune_pc_test():
     pcs = data_utils.load_kitti_pcs(0, 10)
     poses = data_utils.kitti_sequence_poses(0, 10)
 
@@ -364,6 +365,9 @@ def test_multiscale():
 # interpolate_likelihood_test()
 # test_interp_weights()
 # demo_hessian_check()
-# hessian_vect_test()
-# test_prune_pc()
-test_multiscale()
+# prune_pc_test()
+# test_multiscale()
+print('Running Jacobian test on interpolate point cloud(for value)')
+jacobian_vect_test('interpolate')
+print('Running Jacobian test on overlapping point cloud (for value (truly this time around)')
+# jacobian_vect_test('overlapping')
