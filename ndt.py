@@ -550,7 +550,7 @@ class NDTCloudInterpolated(NDTCloudBase):
         vert_idx = self.pairing_cent2int(vert_stack)
         vect_nearby_idx = np.reshape(vert_idx.T, [8, N]).T
         vect_mus = np.empty([8, N, 3, 1])
-        vect_inv_sigmas = 100*np.ones([8, N, 3, 3])
+        vect_inv_sigmas = 10000*np.ones([8, N, 3, 3])
         for key in self.stats:
             indices = vect_nearby_idx == self.stats[key]['idx']
             mean = self.stats[key]['mu']
@@ -558,9 +558,9 @@ class NDTCloudInterpolated(NDTCloudBase):
             vect_mus[indices.T, :, 0] = mean
             vect_inv_sigmas[indices.T, :, :] = inv_sigma
         diff = np.empty_like(vect_mus)
-        diff[:, :, :, 0] = vect_mus[:, :, :, 0] - transformed_xyz[:N, :]
+        diff[:, :, :, 0] = -vect_mus[:, :, :, 0] + transformed_xyz[:N, :]
         diff_transpose = np.transpose(diff, [0, 1, 3, 2])
-        lkds = np.exp(-np.matmul(np.matmul(diff_transpose, vect_inv_sigmas), diff))[:, :, 0, 0]
+        lkds = np.exp(-0.5*np.matmul(np.matmul(diff_transpose, vect_inv_sigmas), diff))[:, :, 0, 0]
         weights = self.find_interp_weights(transformed_xyz, neighbours)[:, :N]
         wgt_lkd = weights*lkds
         likelihood = np.sum(wgt_lkd)
