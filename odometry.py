@@ -23,8 +23,6 @@ hess_neval = 0
 def odometry(ndt_cloud, test_pc, max_iter_pre=15, max_iter_post=10, integrity_filter=0.7):
     """
     Function to find the best traansformation (in the form of a translation, Euler angle vector)
-    :param ndt_cloud: NDT approximation of the prior representation
-    :return: test_pc: Point cloud which has to be matched to the existing NDT approximation
     """
     global obj_neval
     obj_neval = 0
@@ -308,29 +306,100 @@ def hessian(odometry_vector, ndt_cloud, test_pc):
     return hessian_val
 
 
-def interp_odometry():
-    # TODO: Write interpolated odometry function
+def interp_odometry(ndt_cloud, test_pc, max_iter_pre=15, max_iter_post=10, integrity_filter=0.7):
+    global obj_neval
+    obj_neval = 0
+    global jacob_neval
+    jacob_neval = 0
+    global hess_neval
+    hess_neval = 0
+    test_xyz = test_pc[:, :3]
+    initial_odom = np.zeros(6)
+    # initial_odom = search_initial(ndt_cloud, test_xyz)
+    res1 = minimize(interp_objective, initial_odom, method='Newton-CG', jac=interp_jacobian, hess=interp_hessian,
+                    args=(ndt_cloud, test_xyz), options={'disp': True, 'maxiter': max_iter_pre})
+    # res = minimize(objective, initial_odom, method='BFGS', args=(ndt_cloud, test_xyz), options={'disp' : True})
+    temp_odom = res1.x
+    transformed_xyz = utils.transform_pc(temp_odom, test_xyz)
+    ndt_cloud.find_integrity(transformed_xyz)
+    ndt_cloud.filter_voxels_integrity(integrity_limit=integrity_filter)
+    if max_iter_post != 0:
+        res2 = minimize(interp_objective, temp_odom, method='Newton-CG', jac=interp_jacobian, hess=interp_hessian,
+                        args=(ndt_cloud, test_xyz), options={'disp': True, 'maxiter': max_iter_post})
+        odom_vector = res2.x
+    else:
+        odom_vector = np.copy(temp_odom)
+    # Return odometry in navigational frame of reference
+    return odom_vector
 
-    return None
+
+def interp_objective(odometry_vector, ndt_cloud, test_pc):
+    assert (ndt_cloud.cloud_type == 'interpolate')
+    global obj_neval
+    global jacob_neval
+    global hess_neval
+    transformed_pc = utils.transform_pc(odometry_vector, test_pc)
+    obj_value = -1 * ndt_cloud.find_likelihood(transformed_pc)
+    if hess_neval % 5 == 0:
+        print('Objective iteration: {:4d}'.format(obj_neval), 'Jacobian iteration: {:4d}'.format(jacob_neval),
+              'Hessian iteration: {:4d}'.format(hess_neval), 'Objective Value: {:10.4f}'.format(obj_value))
+    """
+    , ' Odometry:',
+          ' x: {:2.5f}'.format(odometry_vector[0]), ' y: {:2.5f}'.format(odometry_vector[1]),
+          ' z: {:2.5f}'.format(odometry_vector[2]), ' Phi: {:2.5f}'.format(odometry_vector[3]),
+          ' Theta:{:2.5f}'.format(odometry_vector[4]), ' Psi: {:2.5f}'.format(odometry_vector[5])
+    """
+    obj_neval += 1
+    return obj_value
 
 
-def interp_objective():
-    # TODO: Write interpolated objective function
-    return None
+def interp_jacobian(odometry_vector, ndt_cloud, test_pc):
+    assert(ndt_cloud.cloud_type == 'interpolate')
+    N = test_pc.shape[0]
+    transformed_xyz = utils.transform_pc(odometry_vector, test_pc[:, :3])
+    neighbours = ndt_cloud.find_neighbours(transformed_xyz)
+    weights = ndt_cloud.find_interp_weights(transformed_xyz, neighbours)[:, :N]
+
+    vect_nearby_init = np.array(np.hsplit(neighbours, 8))
+    vert_stack = np.reshape(vect_nearby_init, [N * 8, 3])
+    vert_idx = ndt_cloud.pairing_cent2int(vert_stack)
+    vect_nearby_idx = np.reshape(vert_idx.T, [8, N]).T
+    vect_mus = np.zeros([8, N, 3, 1])
+    vect_inv_sigmas = 10000*np.ones([8, N, 3, 3])
+
+    delq_delt = find_delqdelt_vect(odometry_vector, transformed_xyz)
+    # shape N, 3, 6
+
+    for key in ndt_cloud.stats:
+        indices = vect_nearby_idx == ndt_cloud.stats[key]['idx']
+        mu = ndt_cloud.stats[key]['mu']
+        inv_sigma = np.linalg.inv(ndt_cloud.stats[key]['sigma'])
+        vect_mus[indices.T, :, 0] = mu
+        vect_inv_sigmas[indices.T, :, :] = inv_sigma
+    # q_i.T*inv_sigma*delq_delt*likelihood (original formulation)
+    diff = np.zeros_like(vect_mus)
+    diff[:, :, :, 0] = -vect_mus[:, :, :, 0] + transformed_xyz[:N, :]  # shape 8, N, 3, 1
+    diff_transpose = np.transpose(diff, [0, 1, 3, 2])  # shape 8, N, 1, 3
+    lkds = np.exp(-0.5*np.matmul(np.matmul(diff_transpose, vect_inv_sigmas), diff))[:, :, 0, 0]  # shape 8, N
+    wgt_lkd = weights * lkds  # shape 8, N
+    vect_wgt_lkd = np.repeat(wgt_lkd[:, :, np.newaxis, np.newaxis], 6, axis=3)
+    # shape 8, N, 1, 6 (likelihood value repeated along last axis)
+    vect_delq_delt = np.transpose(np.repeat(delq_delt[:, :, :, None], 8, axis=3), (3, 0, 1, 2)) # shape 8, N, 3, 6
+    vect_jacob = vect_wgt_lkd*np.matmul(np.matmul(diff_transpose, vect_inv_sigmas), vect_delq_delt)
+    jacob_val = np.sum(np.sum(vect_jacob[:, :, 0, :], axis=0), axis=0)
+    return jacob_val
 
 
-def interp_jacobian():
-    # TODO: Write interpolated jacobian function
-    return None
-
-
-def interp_hessian():
+def interp_hessian(odometry_vector, ndt_cloud, test_pc):
     # TODO: Write interpolated hessian function
+    assert (ndt_cloud.cloud_type == 'interpolate')
     return None
 
 ################################################################
 # Consensus odometry function follow. Don't really work
 ################################################################
+
+
 def consensus_odometry(ndt_cloud, test_pc):
     """
     Function to find the best traansformation (in the form of a translation, Euler angle vector)
