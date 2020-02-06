@@ -58,7 +58,9 @@ def check_gradient(objective, jacobian, ndt_cloud, test_pc, odometry_vector, pri
     delta = 1.5e-08
     odom = odometry_vector
     jacob_val = np.zeros(6)
-    analytical_jacob = jacobian(odometry, ndt_cloud, test_pc)
+    print('Calculating analytical Jacobian')
+    analytical_jacob = jacobian(odom, ndt_cloud, test_pc)
+    print('Calculating numeric estimate of Jacobian')
     for i in range(6):
         new_odometry = np.zeros(6)
         for j in range(6):
@@ -72,6 +74,8 @@ def check_gradient(objective, jacobian, ndt_cloud, test_pc, odometry_vector, pri
         print('The numerical jacobian vector is', jacob_val)
         print('The jacobian vector error is ', jacobian_error)
         print('The magnitude of the jacobian error is', jacob_error_norm)
+        print('Andrew Ngs test metric is ', (np.linalg.norm(jacob_val - analytical_jacob) /
+                                             (np.linalg.norm(jacob_val)+ np.linalg.norm(analytical_jacob))))
     return jacobian_error, jacob_error_norm
 
 
