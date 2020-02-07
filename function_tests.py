@@ -291,22 +291,32 @@ def hessian_vect_test(ndt_type='overlapping'):
     poses = data_utils.kitti_sequence_poses(0, 10, diff=1)
     ref_lidar = pcs[0]
     test_lidar = pcs[1]
-    N = 10000
+    N = 1000
     cand_pos = np.array([0., 0., 0., 0., 0., 0.])
     ref_ndt = ndt.ndt_approx(ref_lidar, horiz_grid_size=1., vert_grid_size=1., type=ndt_type)
-    tic = time.time()
-    original_hessian = odometry.hessian(cand_pos, ref_ndt, ref_lidar[:N, :])
-    print('Time taken to run original Hessian is ', time.time() - tic)
-    tic = time.time()
-    vect_hessian = odometry.hessian_vect(cand_pos, ref_ndt, ref_lidar[:N, :])
-    print('Time taken to run new and surprisingly fancy Hessian is ', time.time() - tic)
 
-    # Checking the Hessian: Check the row of the Hessian that corresponds to each jacobian element (using grad check)
-    _, hess_error_norm = diagnostics.check_hessian(odometry.jacobian_vect, odometry.hessian, ref_ndt, ref_lidar[:N, :],
-                                                   cand_pos)
-    _, hess_vect_error_norm = diagnostics.check_hessian(odometry.jacobian_vect, odometry.hessian_vect, ref_ndt,
-                                                        ref_lidar[:N, :], cand_pos)
-    print('The Hessian error is ', hess_error_norm)
+    if ndt_type == 'interpolate':
+        tic = time.time()
+        interp_hess_vect = odometry.interp_hessian(cand_pos, ref_ndt, ref_lidar[:N, :])
+        toc = time.time()
+        _, hess_vect_error_norm = diagnostics.check_hessian(odometry.interp_jacobian, odometry.interp_hessian, ref_ndt,
+                                                            ref_lidar[:N, :], cand_pos, print_output=True)
+    else:
+        tic = time.time()
+        original_hessian = odometry.hessian(cand_pos, ref_ndt, ref_lidar[:N, :])
+        print('Time taken to run original Hessian is ', time.time() - tic)
+        tic = time.time()
+        vect_hessian = odometry.hessian_vect(cand_pos, ref_ndt, ref_lidar[:N, :])
+        print('Time taken to run new and surprisingly fancy Hessian is ', time.time() - tic)
+        # Checking the Hessian: Check the row of the Hessian that corresponds to each jacobian element
+        #_, hess_error_norm = diagnostics.check_hessian(odometry.jacobian_vect, odometry.hessian, ref_ndt,
+        #                                               ref_lidar[:N, :],
+        #                                               cand_pos)
+        _, hess_vect_error_norm = diagnostics.check_hessian(odometry.jacobian_vect, odometry.hessian_vect, ref_ndt,
+                                                            ref_lidar[:N, :], cand_pos)
+
+
+    #print('The Hessian error is ', hess_error_norm)
     print('The vectorized Hessian error is', hess_vect_error_norm)
 
     return None
@@ -367,7 +377,5 @@ def test_multiscale():
 # demo_hessian_check()
 # prune_pc_test()
 # test_multiscale()
-print('Running Jacobian test on interpolate point cloud(for value)')
-jacobian_vect_test('interpolate')
-print('Running Jacobian test on overlapping point cloud (for value (truly this time around)')
-# jacobian_vect_test('overlapping')
+print('Running Hessian test on interpolate point cloud(for value)')
+hessian_vect_test('interpolate')
