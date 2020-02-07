@@ -392,8 +392,51 @@ def interp_jacobian(odometry_vector, ndt_cloud, test_pc):
 
 def interp_hessian(odometry_vector, ndt_cloud, test_pc):
     # TODO: Write interpolated hessian function
-    assert (ndt_cloud.cloud_type == 'interpolate')
-    return None
+    assert(ndt_cloud.cloud_type == 'interpolate')
+    N = test_pc.shape[0]
+    transformed_xyz = utils.transform_pc(odometry_vector, test_pc[:, :3])
+    neighbours = ndt_cloud.find_neighbours(transformed_xyz)
+    weights = ndt_cloud.find_interp_weights(transformed_xyz, neighbours)[:, :N]
+
+    vect_nearby_init = np.array(np.hsplit(neighbours, 8))
+    vert_stack = np.reshape(vect_nearby_init, [N * 8, 3])
+    vert_idx = ndt_cloud.pairing_cent2int(vert_stack)
+    vect_nearby_idx = np.reshape(vert_idx.T, [8, N]).T
+    vect_mus = np.zeros([8, N, 3, 1])
+    vect_inv_sigmas = 10000*np.ones([8, N, 3, 3])
+
+    delq_delt = find_delqdelt_vect(odometry_vector, transformed_xyz)
+    vect_delq_delt = np.transpose(np.repeat(delq_delt[:, :, :, None], 8, axis=3), (3, 0, 1, 2))
+    vect_delq_delt_trans = np.transpose(vect_delq_delt, (0, 1, 3, 2))
+
+    del2q_deltnm = find_del2q_deltnm_vect(odometry_vector, transformed_xyz) # shape ()
+    vect_del2q_deltnm = np.transpose(np.repeat(del2q_deltnm[:, :, :, :, np.newaxis], 8, axis=4), (4, 0, 1, 2, 3))
+
+    for key in ndt_cloud.stats:
+        indices = vect_nearby_idx == ndt_cloud.stats[key]['idx']
+        mu = ndt_cloud.stats[key]['mu']
+        inv_sigma = np.linalg.inv(ndt_cloud.stats[key]['sigma'])
+        vect_mus[indices.T, :, 0] = mu
+        vect_inv_sigmas[indices.T, :, :] = inv_sigma
+
+    diff = np.zeros_like(vect_mus)
+    diff[:, :, :, 0] = -vect_mus[:, :, :, 0] + transformed_xyz[:N, :]  # shape 8, N, 3, 1
+    diff_transpose = np.transpose(diff, [0, 1, 3, 2])  # shape 8, N, 1, 3
+    lkds = np.exp(-0.5*np.matmul(np.matmul(diff_transpose, vect_inv_sigmas), diff))[:, :, 0, 0]  # shape 8, N
+    wgt_lkd = weights*lkds
+    temp11 = np.matmul(diff_transpose, vect_inv_sigmas)
+    term1 = np.zeros([8, N, 6, 6])
+    for mult_idx in range(3):
+        temp21 = temp11[:, :, 0, mult_idx]
+        temp22 = np.repeat(np.repeat(temp21[:, :, np.newaxis, np.newaxis], 6, axis=2), 6, axis=3)
+        term1 += temp22 * vect_del2q_deltnm[:, :, mult_idx, :, :]
+    term2 = np.matmul(vect_delq_delt_trans, np.matmul(vect_inv_sigmas, vect_delq_delt))
+    term31 = np.matmul(vect_delq_delt_trans, np.matmul(vect_inv_sigmas, diff))
+    term32 = np.matmul(diff_transpose, np.matmul(vect_inv_sigmas, vect_delq_delt))
+    vect_wgt_lkd = np.repeat(np.repeat(wgt_lkd[:, :, np.newaxis, np.newaxis], 6, axis=2), 6, axis=3)
+    vect_hessian_val = vect_wgt_lkd*(term1 + term2 - np.matmul(term31, term32))
+    hessian_val = np.sum(np.sum(vect_hessian_val, axis=0), axis=0)
+    return hessian_val
 
 ################################################################
 # Consensus odometry function follow. Don't really work
