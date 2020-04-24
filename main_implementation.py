@@ -16,7 +16,7 @@ def main():
 
     print('Setting model parameters')
 
-    run_no = 3
+    run_no = 7here
     plot_fig = True
 
     run_mode = 'server'
@@ -24,9 +24,9 @@ def main():
     total_iters = 20 # 20
     iter1 = 10 # 10
     iter2 = 10 # 10
-    num_pcs = 40 #100
-    num_odom_vects = 4 #10
-    test_mode = 'overlapping'  # 'nooverlap' 'interpolate'
+    num_pcs = 30 #100
+    num_odom_vects = 5 #10
+    test_mode = 'overlap'  # 'nooverlap' 'interpolate'
 
     max_x = 0.4
     max_y = 0.4
