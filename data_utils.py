@@ -3,6 +3,7 @@ data_utils.py
 File for NDT SLAM helper functions that deal exclusively with data handling
 Author: Ashwin Kanhere
 Date Created: 15th April 2019
+Date Modified: 26th May 2020
 """
 import numpy as np
 import transforms3d
@@ -13,6 +14,14 @@ from utils import affine_to_odometry, odometry_difference
 
 
 def raw_kitti_poses(start, end, pose_diff, raw_pose_mode='laptop'):
+    """
+    Function to extract KITTI pose data with respect to the origin (map frame of reference)
+    :param start: Starting PC index
+    :param end: Ending PC index
+    :param pose_diff: Difference in consecutive indices
+    :param raw_pose_mode: Data extraction file path to use
+    :return map_odometry: Poses wrt map reference
+    """
     data, num_frames = load_kitti_data(start, end, diff=pose_diff, mode=raw_pose_mode)
     R_imu_to_velo = np.array([[9.999976e-01, 7.553071e-04, -2.035826e-03], [-7.854027e-04, 9.998898e-01, -1.482298e-02],
                   [2.024406e-03, 1.482454e-02, 9.998881e-01]])
@@ -28,6 +37,14 @@ def raw_kitti_poses(start, end, pose_diff, raw_pose_mode='laptop'):
 
 
 def kitti_sequence_poses(start, end, diff=1, seq_input_mode='laptop'):
+    """
+    Function to extract odometry (consecutive pose differences) for KITTI data
+    :param start: Starting PC index
+    :param end: Ending PC index
+    :param diff: Difference in consecutive indices
+    :param seq_input_mode: Data extraction file path to use
+    :return kitti_odom: 6DOF odometry between consecutive PCs
+    """
     map_odometry = raw_kitti_poses(start, end, pose_diff=diff, raw_pose_mode=seq_input_mode)
     num_frames = map_odometry.shape[0]
     kitti_odom = np.zeros([num_frames, 6])
@@ -37,6 +54,15 @@ def kitti_sequence_poses(start, end, diff=1, seq_input_mode='laptop'):
 
 
 def load_kitti_data(start, end, diff=1, mode='laptop'):
+    """
+    Function to extract KITTI measurements
+    :param start: Starting PC index
+    :param end: Ending PC index
+    :param diff: Difference in consecutive indices
+    :param mode: Data extraction file path to use
+    :return data: KITTI data (containing PCs, poses etc.)
+    :return num_frames: Number of frames in extracted data
+    """
     end += 1
     if mode == 'laptop':
         basedir = 'D:\\Users\\kanhe\\Box Sync\\Research Projects\\Consensus NDT SLAM\\Dataset'
@@ -54,6 +80,14 @@ def load_kitti_data(start, end, diff=1, mode='laptop'):
 
 
 def load_uiuc_pcs(start, end, diff=1, mode='laptop'):
+    """
+    Function to extract UIUC PC 
+    :param start: Starting PC index
+    :param end: Ending PC index
+    :param diff: Difference in consecutive indices
+    :param mode: Data extraction file path to use
+    :return uiuc_pcs: List containig numpy array of PCs
+    """
     end += 1  # To include the end index
     uiuc_pcs = []
     if mode == 'laptop':
@@ -73,6 +107,14 @@ def load_uiuc_pcs(start, end, diff=1, mode='laptop'):
 
 
 def load_kitti_pcs(start, end, pc_diff=1, pc_mode='laptop'):
+    """
+    Function to extract KITTI PC 
+    :param start: Starting PC index
+    :param end: Ending PC index
+    :param diff: Difference in consecutive indices
+    :param mode: Data extraction file path to use
+    :return uiuc_pcs: List containig numpy array of PCs
+    """
     kitti_pcs = []
     data, num_frames = load_kitti_data(start, end, diff=pc_diff, mode=pc_mode)
     for idx in range(num_frames):

@@ -28,7 +28,8 @@ Importing base libraries
 class NDTCloudBase:
     """
     A class to store the sparse grid center points, means and covariances for grid points that are full.
-    This class will be the de facto default for working with NDT point clouds
+    This class will be the de facto default for working with NDT point clouds.
+    After refactoring for multiscale NDT with different methods, has become parent class for all NDT approximation methods
     """
     def __init__(self, xlim, ylim, zlim, input_horiz_grid_size, input_vert_grid_size, cloud_type):
         """
@@ -344,21 +345,6 @@ class NDTCloudBase:
             del self.stats[del_key]
         return None
 
-    """
-    Following function doesn't seem to be used anywhere. Removed 
-    def points_in_filled_voxels(self, test_pc):
-        # Intuition: This functionality is used only in bin_in_voxels. So might be better deleted and just put in there
-        points_repeated, voxel_centers = self.find_voxel_center(test_pc)
-        dummy = numpy_indexed.group_by(voxel_centers, points_repeated)
-        repeated_voxel_points = np.empty([0, 3])
-        for i in range(np.shape(dummy[0])[0]):
-            voxel_key = tuple(dummy[0][i])
-            if voxel_key in self.stats:
-                repeated_voxel_points = np.vstack((repeated_voxel_points, dummy[1][i]))
-        voxel_points = np.unique(repeated_voxel_points, axis=0)
-        return voxel_points
-    """
-
     def pairing_cent2int(self, point_centers):
         """
 
@@ -409,6 +395,11 @@ class NDTCloudBase:
         return None
 
     def prune_pc(self, pc):
+        """
+        Remove all points that don't overlap with NDT Cloud
+        :param pc: Point cloud
+        :return pruned_pc: Unique points that overlap with NDT Cloud
+        """
         pruned_pc = np.zeros([0, 3])
         center_dict = self.bin_in_voxels(pc)
         keys = np.zeros([0, 3])
@@ -421,12 +412,13 @@ class NDTCloudBase:
             if key in self.stats:
                 keys = np.vstack((keys, key))
                 pruned_pc = np.vstack((pruned_pc, center_dict[key]))
-        # This function seems to be working. When recreating the NDT point cloud, extra voxels seem to be occupied but
-        # visually its the same
         return np.unique(pruned_pc, axis=0)
 
 
 class NDTCloudNoOverLap(NDTCloudBase):
+    """
+    Class inherited from NDTCloudBase parent for NDT approximation with no overlapping voxels
+    """
     def __init__(self, xlim, ylim, zlim, input_horiz_grid_size, input_vert_grid_size, cloud_type):
         super(NDTCloudNoOverLap, self).__init__(xlim, ylim, zlim, input_horiz_grid_size, input_vert_grid_size
                                                 , cloud_type)
@@ -438,6 +430,9 @@ class NDTCloudNoOverLap(NDTCloudBase):
 
 
 class NDTCloudOverLap(NDTCloudBase):
+    """
+    Class inherited from NDTCloudBase parent for NDT approximation with overlapping voxels. Overlap ensure smoother likelihood computation
+    """
     def __init__(self, xlim, ylim, zlim, input_horiz_grid_size, input_vert_grid_size, cloud_type):
         super(NDTCloudOverLap, self).__init__(xlim, ylim, zlim, input_horiz_grid_size, input_vert_grid_size
                                               , cloud_type)
@@ -451,6 +446,10 @@ class NDTCloudOverLap(NDTCloudBase):
 
 
 class NDTCloudInterpolated(NDTCloudBase):
+    """
+    Class inherited from NDTCloudBase parent for NDT approximation with non-overlapping voxels with interpolated likelihood calculation.
+    Method of objective, Jacobian and Hessian computations is different from base class.
+    """
     def __init__(self, xlim, ylim, zlim, input_horiz_grid_size, input_vert_grid_size, cloud_type):
         super(NDTCloudInterpolated, self).__init__(xlim, ylim, zlim, input_horiz_grid_size, input_vert_grid_size
                                                    , cloud_type)
@@ -461,6 +460,11 @@ class NDTCloudInterpolated(NDTCloudBase):
         self.first_center[0, :] = np.array([first_center_x, first_center_y, first_center_z])
 
     def find_octant(self, transformed_xyz):
+        """
+        Find which octant of divided voxel point lies in. Used to find centers of neighbouring voxels
+        :param transformed_xyz: PC after transformation
+        :return octant: Octants for each point in the PC
+        """
         # Use itertools.product here for oneline implementation
         _, point_centers = self.find_voxel_center(transformed_xyz)
         # N = transformed_xyz.shape[0]
@@ -481,6 +485,12 @@ class NDTCloudInterpolated(NDTCloudBase):
         return octant
 
     def find_neighbours(self, transformed_xyz, no_neighbours=8):
+        """
+        Return centers of voxels neighbouring points in given point cloud
+        :param transformed_xyz: PC after transformation
+        :param no_neighbours: Number of neighbours to find, 8 by default
+        :return nearby: neighbours of each point in transformed_xyz
+        """
         # N = transformed_xyz.shape[0]
         if no_neighbours == 8:
             octants = self.find_octant(transformed_xyz)
@@ -497,6 +507,10 @@ class NDTCloudInterpolated(NDTCloudBase):
 
     @staticmethod
     def octant2diff():
+        """
+        Map octant to coordinate changes in center of voxel
+        return diff_index: Octant to difference mapping
+        """
         # Defining a reverse octant index\
         oct_rev = np.zeros([8, 2, 3])
         oct_rev[0, 1, :] = [1, 1, 1]
@@ -522,9 +536,9 @@ class NDTCloudInterpolated(NDTCloudBase):
     def find_interp_weights(self, pts, neighbours):
         """
         Function debugged by checking sum of all values and that the max and min do not leave the unit interval
-        :param pts:
-        :param neighbours:
-        :return:
+        :param pts: Points for which interpolated weights are required
+        :param neighbours: Neighbours of points for pts and NDT cloud
+        :return weights: Weight of each neighbour for corresponding point
         """
         norm_neighbours = (neighbours - np.tile(neighbours[:, :3], 8)) / \
                           np.tile(np.array([self.horiz_grid_size, self.horiz_grid_size, self.vert_grid_size]), 8)
@@ -539,8 +553,11 @@ class NDTCloudInterpolated(NDTCloudBase):
     def find_likelihood(self, transformed_pc):
         """
         Likelihood calculated on a per point basis. First, calculate the 8 closest grid centers/ or means to a point
-        Use expectation of point for each Gaussian as the value at the mean of that Gaussian
+        Use expectation of point for each Gaussian as the value at the mean of that Gaussian.
+        Vectorized implementation
         Finally, calculate an interpolation for the actual value of the mean with the associated weights
+        :param transformed_pc: PC for which likelihood calculation is required
+        :return likelihhod: Calculated interpolated likelihood
         """
         transformed_xyz = transformed_pc[:, :3]
         neighbours = self.find_neighbours(transformed_xyz)
@@ -565,46 +582,6 @@ class NDTCloudInterpolated(NDTCloudBase):
         wgt_lkd = weights*lkds
         likelihood = np.sum(wgt_lkd)
         return likelihood
-
-    def find_likelihood_non_vect(self, transformed_pc):
-        transformed_xyz = transformed_pc[:, :3]
-        neighbours = self.find_neighbours(transformed_xyz)
-        N = transformed_xyz.shape[0]
-        non_vect_lkd = 0
-        for idx in range(N):
-            # Here,iterate over each point,find its neighbours,find their weights and likelihoods,then add
-            pt = transformed_xyz[idx, :]
-            pt_neigh = neighbours[idx, :]
-            pt_neigh = np.reshape(pt_neigh, [8, 3])
-            x = np.unique(pt_neigh[:, 0])
-            y = np.unique(pt_neigh[:, 1])
-            z = np.unique(pt_neigh[:, 2])
-            mesh_x, mesh_y, mesh_z = np.meshgrid(x, y, z, sparse=False, indexing='xy')
-            # print('Breakpointintheloop')
-            # Setvaluesatthecenterofeachvoxelasthelikelihoodfromthatvoxel.Theninterpolatetherest
-            loop_toc = [nidx for nidx in itertools.product([0, 1], repeat=3)]
-            vals = np.zeros([2, 2, 2])
-            for neigh_idx in range(8):
-                nidx = loop_toc[neigh_idx]
-                # print('nidxis:',nidx)
-                key = tuple([mesh_x[nidx], mesh_y[nidx], mesh_z[nidx]])
-                pt_neigh[neigh_idx, :] = np.array(key)
-                # print('Testingkey:',key)
-                if key in self.stats:
-                    # print('keyisinselfstats')
-                    diff = np.atleast_2d(pt - self.stats[key]['mu'])  # It's a coincidence that the dimensions work out
-                    sigma_inv = np.linalg.inv(self.stats[key]['sigma'])
-                    vals[nidx] = np.sum(np.exp(-0.5 * np.diag(np.matmul(np.matmul(diff, sigma_inv), diff.T))))
-                else:
-                    vals[nidx] = 0
-            interp_lkd = RGI((x, y, z), vals)
-            try:
-                pt_lkd = interp_lkd(pt)[0]
-            except ValueError:
-                pt_lkd = 0
-            non_vect_lkd += pt_lkd
-            # print("Break point in loop")
-        return non_vect_lkd
 
 
 def ndt_approx(ref_pointcloud, horiz_grid_size=0.5, vert_grid_size=0.5, type='overlapping'):
@@ -669,6 +646,16 @@ def find_pc_limits(pointcloud):
 
 
 def multi_scale_ndt_odom(ref_pc, test_pc, scale_vect, filter_cv, test_mode, iters1, iters2):
+    """
+    find odometry mapping test PC to reference PC using multiscale NDT approximation
+    :param ref_pc: Reference PC
+    :param test_pc: Test PC
+    :param scale_vect: Vector with NDT voxel lengths
+    :param filter_cv: Voxel consensus metric below which voxels are removed
+    :param test_mode: Type of NDT approximation, overlapping, nooverlap, interpolate
+    :param iters1: Maximum number of iterations before removing low consensus voxels
+    :param iters2: Maximum number of iterations after removing low consensus voxels
+    """
     use_ref_pc = np.copy(ref_pc)
     use_test_pc = np.copy(test_pc)
     odom = np.zeros([np.size(scale_vect), 6])

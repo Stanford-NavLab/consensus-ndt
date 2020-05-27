@@ -3,7 +3,7 @@ function_tests.py
 File containing all functions that test code functionality
 Author: Ashwin Kanhere
 Date created: 13th November 2019
-Last modified: 13th November 2019
+Last modified: 26th May 2020
 """
 import pykitti
 import numpy as np
@@ -23,6 +23,9 @@ Helper functions for tests
 
 
 def data_test():
+    """
+    Function to test data extraction code and visualize an extracted point cloud
+    """
     # This is the function from the data-test.py file
     basedir = 'D:\\Users\\kanhe\\Box Sync\\RA Work\\ION GNSS 19\\Implementation\\Dataset'
     date = '2011_09_26'
@@ -38,9 +41,69 @@ def data_test():
     display_lidar = test_lidar.reshape((-1, 3))
     pptk.viewer(display_lidar)
     print('Test Line')
+    return None
+
+
+def verify_combine_odometry():
+    """
+    Verifying implementation of odometry combination
+    """
+    test_pt = np.array([[1, 1, 1]])
+    odom_1 = np.array([0.5, 0.5, 0.5, 0, 0, 0])
+    comb_1 = combine_odometry(odom_1, odom_1)
+    temp_1 = utils.transform_pc(odom_1, test_pt)
+    check_11 = utils.transform_pc(odom_1, temp_1)
+    check_12 = utils.transform_pc(comb_1, test_pt)
+    print(check_11 - check_12, check_11, check_12)
+    odom_2 = np.array([0, 0, 0, 90, 0, 0])
+    comb_2 = combine_odometry(odom_1, odom_2)
+    check_21 = utils.transform_pc(odom_2, temp_1)
+    check_22 = utils.transform_pc(comb_2, test_pt)
+    print(check_21 - check_22, check_21, check_22)
+    odom_3 = np.array([0.5, 0, 0, 90, 0, 0])
+    comb_3 = combine_odometry(odom_1, odom_3)
+    check_31 = utils.transform_pc(odom_3, temp_1)
+    check_32 = utils.transform_pc(comb_3, test_pt)
+    print(check_31 - check_32, check_31, check_32)
+    print('IT WORKS!!!')
+    return None
+
+
+def verify_odometry_difference():
+    """
+    Verifying implementation of odometry difference function
+    """
+    print('Verifying odometry_difference')
+    test_pt = np.array([[1, 1, 1]])
+    odom_1 = np.array([0.5, 0.5, 0.5, 0, 0, 0])
+    temp_1 = utils.transform_pc(odom_1, test_pt)
+    comb_1 = np.array([1, 1, 1, 0, 0, 0])
+    odom_21 = odometry_difference(odom_1, comb_1)
+    check_11 = utils.transform_pc(odom_21, temp_1)
+    check_12 = utils.transform_pc(comb_1, test_pt)
+    print(check_11 - check_12, check_11, check_12)
+    print(odom_21)
+    comb_2 = np.array([0.5, -0.5, 0.5, 90, 0, 0])
+    odom_2 = odometry_difference(odom_1, comb_2)
+    check_21 = utils.transform_pc(odom_2, temp_1)
+    check_22 = utils.transform_pc(comb_2, test_pt)
+    print(check_21 - check_22, check_21, check_22)
+    print(odom_2)
+    comb_3 = np.array([1, -0.5, 0.5, 90, 0, 0])
+    odom_3 = odometry_difference(odom_1, comb_3)
+    check_31 = utils.transform_pc(odom_3, temp_1)
+    check_32 = utils.transform_pc(comb_3, test_pt)
+    print(check_31 - check_32, check_31, check_32)
+    print(odom_3)
+    print('THIS WORKS TOO!!!!!')
+    return None
 
 
 def extract_data():
+    """
+    Function to test pykitti for data extraction
+    :return data: Extracted KITTI data
+    """
     basedir = 'D:\\Users\\kanhe\\Box Sync\\Research Projects\\Consensus NDT SLAM\\Dataset'
     date = '2011_09_26'
     drive = '0005'
@@ -56,6 +119,9 @@ Actually test functions
 
 
 def transforms_test():
+    """
+    Function to verify mathematical formulations most consistent with transforms3d
+    """
     angles = [0, np.pi/4, np.pi/3]
     for i in range(3):
         for j in range(3):
@@ -87,6 +153,9 @@ def transforms_test():
 
 
 def new_ndt_test():
+    """
+    Function to test newer implementation (multi-scale) of NDT approximation
+    """
     xlim = 10
     ylim = 10
     zlim = 5
@@ -109,6 +178,9 @@ def new_ndt_test():
 
 
 def interpolate_likelihood_test():
+    """
+    Debugging interpolated likelihood compuatation plus some sanity checks
+    """
     num_pt = 100000
     data = extract_data()
     test_lidar = data.get_velo(0) # LiDAR point cloud is a Nx4 numpy array
@@ -133,6 +205,9 @@ def interpolate_likelihood_test():
 
 
 def consensus_optimization():
+    """
+    Playing around with using consensus as optimization objective
+    """
     uiuc_pcs = data_utils.load_uiuc_pcs(500, 550, diff=1, mode='server')
     ndt_odom = np.zeros([50, 6])
     icp_odom = np.zeros([50, 6])
@@ -166,6 +241,9 @@ def consensus_optimization():
 
 
 def verify_interp_lkd():
+    """
+    Testing vectorized interpolated likelihood and verifying minima presence at PC overlap
+    """
     pcs = data_utils.load_kitti_pcs(0, 10)
     poses = data_utils.kitti_sequence_poses(0, 10, diff=1)
     ref_lidar = pcs[0]
@@ -218,6 +296,9 @@ def verify_interp_lkd():
 
 
 def test_interp_weights():
+    """
+    Testing weight computation (intermediate step) for interpolated likelihood calculation
+    """
     num_pt = 100000
     data = extract_data()
     ref_lidar = data.get_velo(0) # LiDAR point cloud is a Nx4 numpy array
@@ -238,6 +319,9 @@ def test_interp_weights():
 
 
 def jacobian_vect_test(ndt_type='overlapping'):
+    """
+    Checking values returned from vectorized and non-vectorized Jacobian computations
+    """
     # Verified for test case of same point cloud at origin
     pcs = data_utils.load_kitti_pcs(0, 10)
     ref_lidar = pcs[0]
@@ -256,16 +340,27 @@ def jacobian_vect_test(ndt_type='overlapping'):
 
 
 def demo_hessian(odom):
+    """
+    Hessian of test function x**2
+    return hessian: Hessian of naive function
+    """
     hessian = np.diag([2., 2., 2., 2., 2., 2.])
     return hessian
 
 
 def demo_jacobian(odom):
+    """
+    Naive function x**2 with corresponding Jacobian 2*x
+    return jacobian: Jacobian of naive function
+    """
     jacobian = 2*odom
     return jacobian
 
 
 def demo_hessian_check(odom=np.array([2., 3., 4., 5., 6., 7.]), print_output=True):
+    """
+    Confirming implementation of Hessian as Jacobian of each Jacobian element
+    """
     # Same function as diagnostics.check_hessian. Applied to x1^2 + ... + x6^2 to check the math
     delta = 1.5e-8
     hess_val = np.zeros([6, 6])
@@ -287,6 +382,9 @@ def demo_hessian_check(odom=np.array([2., 3., 4., 5., 6., 7.]), print_output=Tru
 
 
 def hessian_vect_test(ndt_type='overlapping'):
+    """
+    Checking values returned from vectorized and non-vectorized Hessian computations
+    """
     pcs = data_utils.load_kitti_pcs(0, 10)
     poses = data_utils.kitti_sequence_poses(0, 10, diff=1)
     ref_lidar = pcs[0]
@@ -323,6 +421,9 @@ def hessian_vect_test(ndt_type='overlapping'):
 
 
 def prune_pc_test():
+    """
+    Testing PC pruning function
+    """
     pcs = data_utils.load_kitti_pcs(0, 10)
     poses = data_utils.kitti_sequence_poses(0, 10)
 
@@ -349,6 +450,9 @@ def prune_pc_test():
 
 
 def test_multiscale():
+    """
+    Testing implementation of multi-scale NDT 
+    """
     pcs = data_utils.load_uiuc_pcs(0, 10)
     test_odom = np.array([0.3, 0.3, 0.1, 3., 3., 2])
     print(utils.invert_odom_transfer(test_odom))

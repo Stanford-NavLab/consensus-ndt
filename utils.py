@@ -95,6 +95,11 @@ def combine_odometry(odom_1_ref, odom_12_delta):
 
 
 def affine_to_odometry(A):
+    """
+    Convert Affine transformation matrix to equivalent odometry vector
+    :param A: Affine transformation matrix, following transforms3d convention
+    :return odometry_vector: Vector of [x, y, z, phi, theta, psi] with the angles in degrees
+    """
     T, R, _, _ = transforms3d.affines.decompose44(A)
     phi, theta, psi = transforms3d.euler.mat2euler(R, 'rxyz')
     odometry_vector = np.zeros(6)
@@ -104,6 +109,11 @@ def affine_to_odometry(A):
 
 
 def invert_odom_transfer(odom):
+    """
+    Given odometry vector matching PC A to PC B, return odometry vector matching PC B to PC A
+    :param odom: Odometry vector matching PC A to PC B
+    :return inverted_odom: Odometry vector matching PC B to PC A
+    """
     T = odom[:3]
     phi = np.deg2rad(odom[3])
     theta = np.deg2rad(odom[4])
@@ -117,67 +127,11 @@ def invert_odom_transfer(odom):
 
 
 def plot_averaged(run_stats):
+    """
+    Average results from multiple runs for plotting
+    :param run_stats: Results from multiple runs
+    :return : Averaged results from runs
+    """
     assert (run_stats.ndim == 3)
     return np.mean(np.mean(run_stats, axis=2), axis=1)
 
-
-# Sending these functions to the end of the file as they're deprecated by using transforms3d.py
-"""
-def rotation_matrix(angle, axis='z'):
-    angle = np.deg2rad(angle)
-    if axis == 'x':
-        c = np.cos(angle)
-        s = np.sin(angle)
-        rot_matrix = np.array([[1, 0, 0], [0, c, -s], [0, s, c]])
-    elif axis == 'y':
-        c = np.cos(angle)
-        s = np.sin(angle)
-        rot_matrix = np.array([[c, 0, s], [0, 1, 0], [-s, 0, c]])
-    elif axis == 'z':
-        c = np.cos(angle)
-        s = np.sin(angle)
-        rot_matrix = np.array([[c, -s, 0], [s, c, 0], [0, 0, 1]])
-    else:
-        raise Exception('Wrong value for axis input.')
-    return rot_matrix
-
-
-def eul2dcm(euler_angle):
-    phi = euler_angle[0]
-    theta = euler_angle[1]
-    psi = euler_angle[2]
-    rot_mat_x = rotation_matrix(phi, axis='x')
-    rot_mat_y = rotation_matrix(theta, axis='y')
-    rot_mat_z = rotation_matrix(psi, axis='z')
-    dcm = np.matmul(rot_mat_z, np.matmul(rot_mat_y, rot_mat_x))
-    return dcm
-
-
-def dcm2eul(dcm):
-    A11 = dcm[0][0]
-    A12 = dcm[0][1]
-    A13 = dcm[0][2]
-    A21 = dcm[1][0]
-    A22 = dcm[1][1]
-    A23 = dcm[1][2]
-    A31 = dcm[2][0]
-    A32 = dcm[2][1]
-    A33 = dcm[2][2]
-    euler_angle = np.zeros([3, 1])
-    # Implementing formula from Wikipedia now
-    euler_angle[0] = -1*np.arctan2(A32, A33)
-    euler_angle[1] = -np.arcsin(A31)
-    euler_angle[2] = -1*np.arctan2(A12, A11)
-    # Implementation from Wolfram Alpha
-    # denom = np.sqrt(A11**2 + A21**2)
-    # if not denom < 1e-6:
-    #     euler_angle[0] = np.arctan2(A31, A33)
-    #     euler_angle[1] = np.arctan2(-A31, denom)
-    #     euler_angle[2] = np.arctan2(A21, A11)
-    # else:
-    #     euler_angle[0] = np.arctan2(-A23, A22)
-    #     euler_angle[1] = np.arctan2(-A31, denom)
-    #     euler_angle[2] = 0
-    # euler_angle = np.rad2deg(euler_angle)
-    return euler_angle
-"""

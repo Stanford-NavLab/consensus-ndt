@@ -24,7 +24,7 @@ import utils
 
 def pc_similarity(ndt_cloud, pc):
     """
-    Function
+    Computing common area between two point clouds
     :param ndt_cloud: NDT Cloud representing the map
     :param pc: Point cloud transformed with the odometry vector
     :return: sim: The degree of similarity between the pointcloud and map
@@ -77,6 +77,9 @@ def mapping(map_ndt, keyframe_pcs, sequential_odometry):
 
 
 def objective(map_odometry, map_ndt, keyframe_pcs, keyframe_ndts):
+    """
+    Objective function for mapping optimization
+    """
     # Since this is the objective function, the pcs and ndts will not be transformed for every iteration
     obj_val = 0
     pc_num = len(keyframe_pcs)
@@ -103,7 +106,7 @@ def combine_pc_for_map(keyframe_pcs, mapping_odom, map_ndt):
     :param keyframe_pcs: PCs belonging to the current keyframe
     :param mapping_odom: Solution to the mapping objective function
     :param map_ndt: NDT approximation for the map upto the previous keyframe
-    :return:
+    :return map_ndt: Updated parameter map_ndt with the given odometry function
     """
     mapping_odom = np.atleast_2d(mapping_odom)
     for idx, pc in enumerate(keyframe_pcs):

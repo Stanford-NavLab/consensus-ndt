@@ -13,6 +13,12 @@ import data_utils
 
 
 def main():
+    """
+    For a method of NDT approximation, this function samples random initial displacements 
+    between given ranges and solves the Consensus and Naive NDT odometry.
+    The time taken, rotation and displacement error of the Consensus and Naive NDT odometry 
+    methdos is compared.
+    """
 
     print('Setting model parameters')
 

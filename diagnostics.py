@@ -80,6 +80,17 @@ def check_gradient(objective, jacobian, ndt_cloud, test_pc, odometry_vector, pri
 
 
 def check_hessian(jacobian, hessian, ndt_cloud, test_pc, odometry_vector, print_output=False):
+    """
+    Manual function to check analytical Hessian with the numerical approximation
+    :param jacobian: Target Jacobian function for which the Hessian is to be checked
+    :param jacobian: Analytical Hessian function for the given objective function
+    :param ndt_cloud: NDT Cloud Parameter for objective and gradient
+    :param test_pc: PC parameter for functions
+    :param odometry_vector: Point at which the Jacobian needs to be checked
+    :param print_output: Flag to activate printing of values in the function
+    :return: hessian_error: Vector containing the difference between analytical and numerical Hessian
+    :return: hess_error_norm: Magnitude of Hessian error
+    """
     # First column of hessian is derivative of first element of jacobian with respect to all the variables
     delta = 1.5e-8
     odom = odometry_vector
