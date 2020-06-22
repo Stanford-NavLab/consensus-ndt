@@ -24,9 +24,9 @@ Implementation of LiDAR odometry using the Normal Distributions Transform (NDT) 
 
 ## Prerequisites
 * Python 3.xx
-* 
-* [Anaconda](https://www.anaconda.com/)
-* Numpy>=1.0.0, can be installed using `pip install numpy`.
+Python modules listed below can be installed from requirements.txt
+* [Numpy-Indexed](https://pypi.org/project/numpy-indexed/)
+* Points Processing Toolkit ([pptk](https://heremaps.github.io/pptk/viewer.html))
 
 <!-- GETTING STARTED -->
 ## Getting Started
@@ -38,14 +38,11 @@ Implementation of LiDAR odometry using the Normal Distributions Transform (NDT) 
 ```sh
 git clone https://github.com/kanhereashwin/ion-gnss-19.git
 ```
-1. Install packages
+3. Install packages
 ```sh
 pip install -r requirements.txt
 ```
-4. Download dataset
-```sh
-bash scripts/data_downloader.sh
-```
+
 
 <!-- Add as many subheaders as required here -->
 ### Usage
