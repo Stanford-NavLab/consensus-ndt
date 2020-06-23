@@ -24,7 +24,6 @@ Implementation of LiDAR odometry using the Normal Distributions Transform (NDT) 
 
 ## Prerequisites
 * Python 3.6
-
 *Python modules listed below can be installed from 'requirements.txt'
 	*[Numpy](https://numpy.org/)
 	*[Scipy](https://www.scipy.org/)
