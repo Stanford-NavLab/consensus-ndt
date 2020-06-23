@@ -31,6 +31,16 @@ Implementation of LiDAR odometry using the Normal Distributions Transform (NDT) 
 	* [Numpy-Indexed](https://pypi.org/project/numpy-indexed/)
 	* Points Processing Toolkit ([pptk](https://heremaps.github.io/pptk/viewer.html)): PPTK requires Python 3.6 or lower and does not work on recent Python 3.xx versions
 	* [Matplotlib](https://matplotlib.org/)
+	* [scikit-learn](https://scikit-learn.org/stable/install)
+	* [PyKITTI](https://github.com/utiasSTARS/pykitti)
+	<html>
+	<head>
+		<title></title>
+	</head>
+	<body>
+	
+	</body>
+	</html>)
 
 
 <!-- GETTING STARTED -->
@@ -38,18 +48,18 @@ Implementation of LiDAR odometry using the Normal Distributions Transform (NDT) 
 
 ### Installation
 
-1. Clone the repository
+1. Clone the repository.
 ```sh
 git clone https://github.com/kanhereashwin/ion-gnss-19.git
 ```
-2. Install packages. For package management, [Anaconda](https://www.anaconda.com) was used during development. 
+2. Install packages. We recommend using [Anaconda](https://www.anaconda.com) for package management. 
 ```sh
 pip install -r requirements.txt
 ```
 
 <!-- Add as many subheaders as required here -->
 ### Usage
-1. Update the location of datasets in 'data_utils.py' for both the KITTI and UIUC Point cloud datasets
+1. Update the location of datasets in 'data_utils.py' for both the KITTI and UIUC Point cloud datasets.
 2. Run 'main_implementation.py' to generate comparisons between naive NDT and Consensus NDT implementations for position, rotation accuracies and time taken to compute odometry.
 
 
