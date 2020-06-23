@@ -22,7 +22,7 @@ def main():
 
     print('Setting model parameters')
 
-    run_no = 7here
+    run_no = 1
     plot_fig = True
 
     run_mode = 'server'

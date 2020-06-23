@@ -65,7 +65,7 @@ def load_kitti_data(start, end, diff=1, mode='laptop'):
     """
     end += 1
     if mode == 'laptop':
-        basedir = 'D:\\Users\\kanhe\\Box Sync\\Research Projects\\Consensus NDT SLAM\\Dataset'
+        basedir = 'C:\Users\kanhe\Documents\Consensus-NDT\ion-gnss-19\example-dataset'
         date = '2011_09_26'
         drive = '0005'
     elif mode == 'server':
@@ -91,7 +91,7 @@ def load_uiuc_pcs(start, end, diff=1, mode='laptop'):
     end += 1  # To include the end index
     uiuc_pcs = []
     if mode == 'laptop':
-        folder_loc = 'D:\\Users\\kanhe\\Box Sync\\Research Projects\\Consensus NDT SLAM\\Dataset\\uiuc_pointclouds\\'
+        folder_loc = 'C:\Users\kanhe\Documents\Consensus-NDT\ion-gnss-19\example-dataset\uiuc_pointclouds\\'
         filename = 'pc_'
         ext = '.csv'
     elif mode == 'server':
