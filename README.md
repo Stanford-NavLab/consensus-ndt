@@ -24,25 +24,27 @@ Implementation of LiDAR odometry using the Normal Distributions Transform (NDT) 
 
 ## Prerequisites
 * Python 3.6
-Python modules listed below can be installed from <requirements class="txt"></requirements>
-** [Numpy](https://numpy.org/)
-** [Scipy](https://www.scipy.org/)
-** [Transforms3D](https://matthew-brett.github.io/transforms3d/) 
-**[Numpy-Indexed](https://pypi.org/project/numpy-indexed/)
-** 
-** Points Processing Toolkit ([pptk](https://heremaps.github.io/pptk/viewer.html)): PPTK requires Python 3.6 or lower and does not work on recent Python 3.xx versions
+
+*Python modules listed below can be installed from <requirements class="txt"></requirements>
+
+	-[Numpy](https://numpy.org/)
+	-[Scipy](https://www.scipy.org/)
+	-[Transforms3D](https://matthew-brett.github.io/transforms3d/) 
+	-[Numpy-Indexed](https://pypi.org/project/numpy-indexed/)
+	-Points Processing Toolkit ([pptk](https://heremaps.github.io/pptk/viewer.html)): PPTK requires Python 3.6 or lower and does not work on recent Python 3.xx versions
+	- [Matplotlib](https://matplotlib.org/)
+
 
 <!-- GETTING STARTED -->
 ## Getting Started
 
 ### Installation
 
-1. Setup Anaconda [https://www.anaconda.com/](https://www.anaconda.com/)
-2. Clone the repository
+1. Clone the repository
 ```sh
 git clone https://github.com/kanhereashwin/ion-gnss-19.git
 ```
-3. Install packages
+2. Install packages. For package management, [Anaconda](https://www.anaconda.com) was used during development. 
 ```sh
 pip install -r requirements.txt
 ```
