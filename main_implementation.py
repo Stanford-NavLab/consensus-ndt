@@ -25,8 +25,8 @@ def main():
     run_no = 1
     plot_fig = True
 
-    run_mode = 'server'
-    #run_mode = 'laptop'
+    #run_mode = 'server'
+    run_mode = 'laptop'
     total_iters = 20 # 20
     iter1 = 10 # 10
     iter2 = 10 # 10

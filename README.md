@@ -24,7 +24,7 @@ Implementation of LiDAR odometry using the Normal Distributions Transform (NDT) 
 
 ## Prerequisites
 * Python 3.6
-* Python modules listed below can be installed from 'requirements.txt'
+* Python modules listed below are required to run the code. We strongly recommend using 'requirements.txt' to install these modules.
 	* [Numpy](https://numpy.org/)
 	* [Scipy](https://www.scipy.org/)
 	* [Transforms3D](https://matthew-brett.github.io/transforms3d/) 
@@ -33,15 +33,7 @@ Implementation of LiDAR odometry using the Normal Distributions Transform (NDT) 
 	* [Matplotlib](https://matplotlib.org/)
 	* [scikit-learn](https://scikit-learn.org/stable/install)
 	* [PyKITTI](https://github.com/utiasSTARS/pykitti)
-	<html>
-	<head>
-		<title></title>
-	</head>
-	<body>
-	
-	</body>
-	</html>)
-
+	* [OpenCV for Python]()
 
 <!-- GETTING STARTED -->
 ## Getting Started
