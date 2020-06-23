@@ -25,14 +25,14 @@ Implementation of LiDAR odometry using the Normal Distributions Transform (NDT) 
 ## Prerequisites
 * Python 3.6
 
-*Python modules listed below can be installed from <requirements class="txt"></requirements>
+*Python modules listed below can be installed from 'requirements.txt'
 
-	-[Numpy](https://numpy.org/)
-	-[Scipy](https://www.scipy.org/)
-	-[Transforms3D](https://matthew-brett.github.io/transforms3d/) 
-	-[Numpy-Indexed](https://pypi.org/project/numpy-indexed/)
-	-Points Processing Toolkit ([pptk](https://heremaps.github.io/pptk/viewer.html)): PPTK requires Python 3.6 or lower and does not work on recent Python 3.xx versions
-	- [Matplotlib](https://matplotlib.org/)
+	*[Numpy](https://numpy.org/)
+	*[Scipy](https://www.scipy.org/)
+	*[Transforms3D](https://matthew-brett.github.io/transforms3d/) 
+	*[Numpy-Indexed](https://pypi.org/project/numpy-indexed/)
+	*Points Processing Toolkit ([pptk](https://heremaps.github.io/pptk/viewer.html)): PPTK requires Python 3.6 or lower and does not work on recent Python 3.xx versions
+	* [Matplotlib](https://matplotlib.org/)
 
 
 <!-- GETTING STARTED -->
