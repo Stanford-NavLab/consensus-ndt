@@ -1,5 +1,5 @@
-.iml
-.xml
-.yml
-.yaml
-.pyc
+*.iml
+*.xml
+*.yml
+*.yaml
+*.pyc
