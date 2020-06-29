@@ -42,7 +42,7 @@ def main(args):
 
     odom_limits = np.array([max_x, max_y, max_z, max_phi, max_theta, max_psi])
 
-    #scale_array = np.array([2., 1., 0.5])
+    #scale_array = np.array([2., 1., 0.5])  # Comment: if this is a choice, then may want to describe when it is useful and why I should change it
     scale_array = np.array([2., 1.])
     #scale_array = np.array([1.])
 
@@ -52,7 +52,7 @@ def main(args):
     pcs = data_utils.load_uiuc_pcs(0, num_pcs-1, mode=run_mode)
 
     integrity_filters = np.array([0.3, 0.4, 0.5, 0.6, 0.7, 0.8])
-    # integrity_filters = np.array([0.5, 0.8])
+    # integrity_filters = np.array([0.5, 0.8]) # Comment: if this is a choice, then may want to describe when it is useful and why I should change it
     num_int_vals = np.size(integrity_filters)
 
     print('Creating placeholder variables for storing errors')
@@ -69,7 +69,8 @@ def main(args):
 
     for pc_idx, ref_pc in enumerate(pcs):
         for odom_idx in range(num_odom_vects):
-
+            
+            # Comment: maybe describe why this rand_num is created and used
             rand_num = 2*(np.random.rand(6) - 0.5)
             test_odom = odom_limits*rand_num
             inv_test_odom = utils.invert_odom_transfer(test_odom)
@@ -81,6 +82,7 @@ def main(args):
 
             vanilla_odom, test_van_time, _ = ndt.multi_scale_ndt_odom(np.copy(ref_pc), np.copy(trans_pc), scale_array, 0.5,
                                                                    test_mode, total_iters, 0)
+            # Comment: what do you mean by this comment? Consider removing
             #cv is going to be a dummy here
 
             for cv_idx, cv in enumerate(integrity_filters):
