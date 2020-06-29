@@ -10,9 +10,9 @@ import ndt
 import utils
 from matplotlib import pyplot as plt
 import data_utils
+from argparse import ArgumentParser
 
-
-def main():
+def main(args):
     """
     For a method of NDT approximation, this function samples random initial displacements 
     between given ranges and solves the Consensus and Naive NDT odometry.
@@ -23,16 +23,15 @@ def main():
     print('Setting model parameters')
 
     run_no = 1
-    plot_fig = True
+    plot_fig = args.plot_figs
 
-    #run_mode = 'server'
-    run_mode = 'laptop'
-    total_iters = 20 # 20
-    iter1 = 10 # 10
-    iter2 = 10 # 10
-    num_pcs = 2 #30 100
-    num_odom_vects = 5 #10
-    test_mode = 'overlap'  # 'nooverlap' 'interpolate'
+    run_mode = args.run_mode
+    total_iters = args.total_iters
+    iter1 = args.iter1
+    iter2 = args.iter2
+    num_pcs = args.num_pcs
+    num_odom_vects = args.num_odom_vects
+    test_mode = args.test_mode
 
     max_x = 0.4
     max_y = 0.4
@@ -162,5 +161,16 @@ def main():
 
     return 0
 
-
-main()
+if __name__ == "__main__":
+    parser = ArgumentParser()
+    parser.add_argument('--plot_figs', dest='plot_figs', action='store_true', default=True)
+    parser.add_argument('--run_mode', type=str, choices=['server', 'laptop'], default='laptop')
+    parser.add_argument('--test_mode', type=str, choices=['overlap','nooverlap','interpolate'], default='overlap')
+    parser.add_argument('--total_iters', type=int, default=20)
+    parser.add_argument('--iter1', type=int, default=10)
+    parser.add_argument('--iter2', type=int, default=10)
+    parser.add_argument('--num_pcs', type=int, choices=[2,30,100], default=2)
+    parser.add_argument('--num_odom_vects', type=int, choices=[5,10], default=5)
+    
+    args = parser.parse_args()
+    main(args)
