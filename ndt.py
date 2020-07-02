@@ -61,8 +61,6 @@ class NDTCloudBase:
         self.first_center = np.empty([1, 3])
         self.max_no_voxels = -1
         self.cloud_type = cloud_type
-        # TODO: Check if current displacement from navigation origin is needed
-        # Store an estimate of the transformation of the current scan origin to global origin
 
     def update_displacement(self, odometry_vector):
         """
@@ -71,7 +69,7 @@ class NDTCloudBase:
         current local frame of reference (LiDAR origin) to the global frame of reference (map origin)
         :return: None
         """
-        # TODO: Check whether this functionality is using during testing of the mapping code
+        # TODO: 
         # Update translation vector
         self.local_to_global[:3] += odometry_vector[:3]
         # Update euler angle vector
@@ -102,7 +100,6 @@ class NDTCloudBase:
         # Used an array over a tuple as there is a small possibility that the coordinates might change
         ref_points = np.array(ref_pointcloud[:, :3])  # to remove intensity if it has been passed accidentally
         grid_size = np.array([self.horiz_grid_size, self.horiz_grid_size, self.vert_grid_size])
-        # tol = 1.0e-7  # the maximum translation (with 3 safety margin)caused by a rotation of 1.45e-8 degrees
         number_row = np.shape(self.first_center)[0]
         points_repeated = np.tile(ref_points, (number_row, 1))
         N = ref_points.shape[0]
@@ -118,7 +115,6 @@ class NDTCloudBase:
             voxel_centers[i*N:(i+1)*N, :] = np.multiply(np.sign(ref_points), np.abs(pre_voxel_center) -
                                                         np.sign(ref_points)*np.broadcast_to(self.first_center[i, :],
                                                                                             (N, 3)))
-            # Modification of multiplying by a sign in the center term seems to have fixed an issue with negative coords
         return points_repeated, voxel_centers
 
     def bin_in_voxels(self, points_to_bin):
@@ -150,10 +146,7 @@ class NDTCloudBase:
             if key in self.stats:
                 sigma = self.stats[key]['sigma']
                 sigma_inv = np.linalg.inv(sigma)
-                # sigma_inv_det = np.linalg.det(sigma_inv)
-                # normal_factor = 1e-8
-                diff = np.atleast_2d(val - self.stats[key]['mu']) # It's a coincidence that the dimensions work out
-                # likelihood += (sigma_inv_det*normal_factor)*np.sum(np.exp(-0.5*np.diag(np.matmul(np.matmul(diff, sigma_inv), diff.T))))
+                diff = np.atleast_2d(val - self.stats[key]['mu']) 
                 likelihood += np.sum(np.exp(-0.5 * np.diag(np.matmul(np.matmul(diff, sigma_inv), diff.T))))
         return likelihood
 
@@ -172,7 +165,6 @@ class NDTCloudBase:
             mu = self.stats[key]['mu']
             measure_num = self.stats[key]['no_points']
             num_pts = np.int(3 * measure_num / self.max_no_points * plot_density * base_num_pts )
-            #num_pts = base_num_pts
             if num_pts < 2:
                 num_pts = 2
             if 'integrity' in self.stats[key]:
@@ -224,17 +216,8 @@ class NDTCloudBase:
                     self.stats[k]['mu'] = np.mean(v, axis=0)
                     self.stats[k]['sigma'] = np.cov(v, rowvar=False)
                     self.stats[k]['no_points'] = no_in_voxel
-                    # New method of index assignment
                     self.stats[k]['idx'] = self.pairing_cent2int(np.atleast_2d(np.array(k)))
                     self.max_no_voxels += 1
-                    """
-                    if self.max_no_voxels < 0:
-                        self.stats[k]['idx'] = 0
-                        self.max_no_voxels = 0
-                    else:
-                        self.stats[k]['idx'] = self.max_no_voxels + 1
-                        self.max_no_voxels += 1
-                    """
                     if self.stats[k]['no_points'] > self.max_no_points:
                         self.max_no_points = self.stats[k]['no_points']
         return None
@@ -249,7 +232,7 @@ class NDTCloudBase:
         """
         scale_param = 0.0001
         for key, val in self.stats.items():
-            u, s_diag, v = np.linalg.svd(val['sigma'])  # np.svd naturally returns a diagonals
+            u, s_diag, v = np.linalg.svd(val['sigma'])  # np.svd naturally returns a diagonal
             s_diag[s_diag < scale_param*s_diag.max()] = scale_param*s_diag.max()
             val['sigma'] = np.matmul(np.matmul(u, np.diag(s_diag)), v)
         return None
@@ -296,7 +279,6 @@ class NDTCloudBase:
                 loop_index += 1
             else:
                 self.stats[key]['integrity'] = 0
-        # avg_iscore = np.mean(iscore)
         iscore_array[iscore_array == 0] = 1e-9
         Im, iscore_sum = integrity.solution_score(mu_points[:loop_index, :], iscore_array[:loop_index], points)
         # The loop index is added to ensure that only points that have a corresponding voxel are used for IDOP
@@ -325,7 +307,6 @@ class NDTCloudBase:
                 if np.isnan(iscore_dict[key]):
                     print('NaN detected!')
                 loop_index += 1
-        # avg_iscore = np.mean(iscore)
         iscore_dict[iscore_dict == 0] = 1e-9
         # The loop index is added to ensure that only points that have a corresponding voxel are used for IDOP
         return iscore_dict, rbar_dict, k_dict
@@ -355,7 +336,6 @@ class NDTCloudBase:
         1. Using voxel size, convert each center to a coordinate with only integer values
         2. Implement a standard pairing function to bind said coordinate to an index
         """
-        # WARNING: Pass by reference might screw up with a bunch of values
         assert(point_centers.shape[1] == 3)  # Checking that the matrix is all row vectors
         # Assign unique positive value to each integer
         pt_centers_temp = np.copy(point_centers)
@@ -379,7 +359,6 @@ class NDTCloudBase:
         Checking that the number of voxels and the number of unique index assignments is the same
         :return: None
         """
-        # This was totally worth it
         voxels = []
         number = 0
         for key in self.stats:
@@ -465,9 +444,7 @@ class NDTCloudInterpolated(NDTCloudBase):
         :param transformed_xyz: PC after transformation
         :return octant: Octants for each point in the PC
         """
-        # Use itertools.product here for oneline implementation
         _, point_centers = self.find_voxel_center(transformed_xyz)
-        # N = transformed_xyz.shape[0]
         diff_sign = np.sign(transformed_xyz - point_centers)
         diff_sign[np.isnan(diff_sign)] = -1.0
         octant_index = np.zeros([2, 2, 2])
@@ -491,7 +468,6 @@ class NDTCloudInterpolated(NDTCloudBase):
         :param no_neighbours: Number of neighbours to find, 8 by default
         :return nearby: neighbours of each point in transformed_xyz
         """
-        # N = transformed_xyz.shape[0]
         if no_neighbours == 8:
             octants = self.find_octant(transformed_xyz)
         else:
@@ -511,7 +487,7 @@ class NDTCloudInterpolated(NDTCloudBase):
         Map octant to coordinate changes in center of voxel
         return diff_index: Octant to difference mapping
         """
-        # Defining a reverse octant index\
+        # Defining a reverse octant index
         oct_rev = np.zeros([8, 2, 3])
         oct_rev[0, 1, :] = [1, 1, 1]
         oct_rev[1, 1, :] = [-1, 1, 1]
@@ -547,7 +523,7 @@ class NDTCloudInterpolated(NDTCloudBase):
         diff_pts_minus_mask = np.ones_like(diff_pts_mask) - diff_pts_mask
         weight_fact = diff_pts_mask*norm_neighbours + diff_pts_minus_mask*(1 - norm_neighbours)
         testing = np.hsplit(weight_fact, 8)
-        weights = np.prod(testing, axis=2) #weights.shape = (8, N)
+        weights = np.prod(testing, axis=2) 
         return weights
 
     def find_likelihood(self, transformed_pc):
@@ -625,7 +601,6 @@ def display_ndt_cloud(ndt_cloud, point_density=0.1):
     :return: None
     """
     points_to_plot, pt_integrity = ndt_cloud.display(plot_density=point_density)
-    # TODO: Check if the following shading attempt works
     pt_integrity = (np.max(pt_integrity) - pt_integrity)/(np.max(pt_integrity) - np.min(pt_integrity))
     ndt_viewer = pptk.viewer(points_to_plot, pt_integrity)
     ndt_viewer.color_map('hot')
@@ -674,8 +649,4 @@ def multi_scale_ndt_odom(ref_pc, test_pc, scale_vect, filter_cv, test_mode, iter
             break
     # Transform the test point cloud by the obtained odometry
     toc = time.time()
-    # Tested and seems to be working
     return odom[scale_idx, :], toc - tic, odom
-
-
-

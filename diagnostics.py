@@ -1,6 +1,6 @@
 """
 diagnostics.py
-Functions to perform diagnostics and testing
+Functions to check nominal operation of other functions
 Author: Ashwin Kanhere
 Date created: 10th June 2019
 """
@@ -130,7 +130,6 @@ def objective_variation(ndt_cloud, test_pc, axis=0, limit=0.5, num_vals=40):
     for i in range(num_vals):
         inverse_odom_value = utils.invert_odom_transfer(np.array([0.11192455, - 0.31511185,  0.01197815,  0.24025847,
                                                                   0.06658534,  0.90697335]))
-        # print(inverse_odom_value)
         odom_value = inverse_odom_value
         odom_value[odom_dim] += dim_variation[i]
         objective_value[i] = odometry.objective(odom_value, ndt_cloud, test_pc)

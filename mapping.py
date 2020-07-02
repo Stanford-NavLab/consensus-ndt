@@ -14,14 +14,6 @@ from scipy.optimize import minimize
 import utils
 
 
-# TODO: Check rotation and displacement conventions for the map. Does the optimizer return the distance of the pc from
-#  the map, or the distance of the map from the pc? - Distance of the PC from the map
-# Convention is: Transformation converts test point cloud to the reference NDT
-
-# TODO: Populate docstring for all functions once they're tested and working
-
-# TODO: Check implementation of all functions
-
 def pc_similarity(ndt_cloud, pc):
     """
     Computing common area between two point clouds
@@ -29,7 +21,6 @@ def pc_similarity(ndt_cloud, pc):
     :param pc: Point cloud transformed with the odometry vector
     :return: sim: The degree of similarity between the pointcloud and map
     """
-    # TODO: Check this function across multiple point clouds
     xlim_pc, ylim_pc, _ = ndt.find_pc_limits(pc)
     base_area = 2*xlim_pc*2*ylim_pc
     bin_in_voxels = ndt_cloud.bin_in_voxels(pc)
@@ -54,7 +45,6 @@ def pc_similarity(ndt_cloud, pc):
 
 
 def mapping(map_ndt, keyframe_pcs, sequential_odometry):
-    # TODO: Check the transform convention as mentioned in the header of mapping.py
     """
     Implements the mapping step of the function
     :param map_ndt: NDT approximation of the map created prior to current keyframe

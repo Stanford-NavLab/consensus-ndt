@@ -10,9 +10,9 @@ import ndt
 import utils
 from matplotlib import pyplot as plt
 import data_utils
+from argparse import ArgumentParser
 
-
-def main():
+def main(args):
     """
     For a method of NDT approximation, this function samples random initial displacements 
     between given ranges and solves the Consensus and Naive NDT odometry.
@@ -23,16 +23,15 @@ def main():
     print('Setting model parameters')
 
     run_no = 1
-    plot_fig = True
+    plot_fig = args.plot_figs
 
-    #run_mode = 'server'
-    run_mode = 'laptop'
-    total_iters = 20 # 20
-    iter1 = 10 # 10
-    iter2 = 10 # 10
-    num_pcs = 2 #30 100
-    num_odom_vects = 5 #10
-    test_mode = 'overlap'  # 'nooverlap' 'interpolate'
+    run_mode = args.run_mode
+    total_iters = args.total_iters
+    iter1 = args.iter1
+    iter2 = args.iter2
+    num_pcs = args.num_pcs
+    num_odom_vects = args.num_odom_vects
+    test_mode = args.test_mode
 
     max_x = 0.4
     max_y = 0.4
@@ -43,17 +42,17 @@ def main():
 
     odom_limits = np.array([max_x, max_y, max_z, max_phi, max_theta, max_psi])
 
-    #scale_array = np.array([2., 1., 0.5])
-    scale_array = np.array([2., 1.])
-    #scale_array = np.array([1.])
+    # Choose the voxel lengths at which NDT approximation will be calculated. If a single value is used, only 1 NDT approximation will be performed
+    scale_array = np.array([2., 1.]) # np.array([2., 1., 0.5]) # np.array([1.])
 
     assert(total_iters == iter1 + iter2)
 
     print('Loading dataset')
     pcs = data_utils.load_uiuc_pcs(0, num_pcs-1, mode=run_mode)
 
-    integrity_filters = np.array([0.3, 0.4, 0.5, 0.6, 0.7, 0.8])
-    # integrity_filters = np.array([0.5, 0.8])
+    # Choose the different values of the voxel consensus metric which'll be used to remove low consensus voxels
+    integrity_filters = np.array([0.3, 0.4, 0.5, 0.6, 0.7, 0.8]) # np.array([0.5, 0.8])
+
     num_int_vals = np.size(integrity_filters)
 
     print('Creating placeholder variables for storing errors')
@@ -70,8 +69,8 @@ def main():
 
     for pc_idx, ref_pc in enumerate(pcs):
         for odom_idx in range(num_odom_vects):
-
-            rand_num = 2*(np.random.rand(6) - 0.5)
+            
+            rand_num = 2*(np.random.rand(6) - 0.5) # Choose a random odometry vector to test convergence of algorithm
             test_odom = odom_limits*rand_num
             inv_test_odom = utils.invert_odom_transfer(test_odom)
 
@@ -82,7 +81,6 @@ def main():
 
             vanilla_odom, test_van_time, _ = ndt.multi_scale_ndt_odom(np.copy(ref_pc), np.copy(trans_pc), scale_array, 0.5,
                                                                    test_mode, total_iters, 0)
-            #cv is going to be a dummy here
 
             for cv_idx, cv in enumerate(integrity_filters):
                 print('\nExperiment for C_v:', cv, ' pc number:', pc_idx, 'odometry:', odom_idx, '\n')
@@ -162,5 +160,16 @@ def main():
 
     return 0
 
-
-main()
+if __name__ == "__main__":
+    parser = ArgumentParser()
+    parser.add_argument('--plot_figs', dest='plot_figs', action='store_true', default=True)
+    parser.add_argument('--run_mode', type=str, choices=['server', 'laptop'], default='laptop')
+    parser.add_argument('--test_mode', type=str, choices=['overlap','nooverlap','interpolate'], default='overlap')
+    parser.add_argument('--total_iters', type=int, default=20)
+    parser.add_argument('--iter1', type=int, default=10)
+    parser.add_argument('--iter2', type=int, default=10)
+    parser.add_argument('--num_pcs', type=int, choices=[2,30,100], default=2)
+    parser.add_argument('--num_odom_vects', type=int, choices=[5,10], default=5)
+    
+    args = parser.parse_args()
+    main(args)

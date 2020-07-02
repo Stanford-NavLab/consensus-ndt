@@ -76,7 +76,8 @@ Project Link: [https://github.com/kanhereashwin/ion-gnss-19](https://github.com/
 ## Citation
 If you use this code for your research, please cite our [paper](https://web.stanford.edu/~gracegao/publications/conference/2019//2019_ION%20GNSS_Ashwin%20Kanhere_Consenus%20NDT%20SLAM_paper.pdf):
 
-'''
+
+```latex
 @inproceedings{kanhere2019consensus,
   title={LiDAR SLAM Utilizing Normal Distribution Transform and Measurement Consensus},
   author={Kanhere, Ashwin Vivek and Gao, Grace Xingxin},
@@ -84,7 +85,7 @@ If you use this code for your research, please cite our [paper](https://web.stan
   pages={2228 - 2240},
   year={2019}
 }
-'''
+```
 
 
 <!-- ACKNOWLEDGEMENTS -->
