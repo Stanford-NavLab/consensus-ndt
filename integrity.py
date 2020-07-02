@@ -43,12 +43,9 @@ def solution_score(points, point_iscore, test_pc):
     :param point_iscore: The integrity score corresponding to these points
     :return: sol_iscore: The final solution's integrity score
     """
-    # TODO: Investigate a method of better estimating geometric coverage of a group of point clouds. Exact DOP might
-    #  not work even when the coverage is full in reality (due to the differences between the points themselves)
     IDOP, iscore_sum = calculate_dop(points, point_iscore)
     DOP, _ = calculate_dop(points)
     sol_iscore = DOP/IDOP
-    # print(np.mean(point_iscore))
     return sol_iscore, iscore_sum
 
 
@@ -110,8 +107,6 @@ def voxel_int_opt(voxel_dict, points):
         Iv = 0
         r_scaled = 2*scale_limit
         k = - 2*(2 * scale_limit) / (T_upper - T_lower)
-    if np.isnan(Iv):
-        print('Yet another Nan!')
     return Iv, r_scaled, k
 
 
